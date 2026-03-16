@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Backend Interview Gym
 
-## Getting Started
+Minimal AI web app for practicing backend interview questions with a polished developer-tool style UI. The app uses Next.js App Router, TypeScript, Tailwind CSS, Framer Motion, the Groq API, and Firestore persistence for completed interview sessions.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js 14
+- TypeScript
+- Tailwind CSS
+- Framer Motion
+- Groq API
+- Firebase Firestore
+- Vercel
+
+## Features
+
+- Animated setup flow with topic, experience level, and interview heat mode
+- AI-generated backend interview questions using `llama-3.1-8b-instant` with compact prompts and capped output tokens
+- AI answer evaluation with score, strengths, missing concepts, better explanation, and learning resources
+- Reusable rotating loading states for interview generation and answer review
+- Firestore storage for interview history metadata
+- Vercel-ready App Router project structure
+
+## Project Structure
+
+```text
+app/
+  api/question/route.ts
+  api/evaluate/route.ts
+  interview/page.tsx
+  result/page.tsx
+  page.tsx
+components/
+  EvaluationCard.tsx
+  InterviewBox.tsx
+  InterviewSetup.tsx
+  LoadingScreen.tsx
+lib/
+  firebase.ts
+  groq.ts
+  types.ts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create `.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+GROQ_API_KEY=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+```
 
-## Learn More
+Note: the Firestore helper uses the Firestore REST API with the Firebase API key and project ID, so your Firestore security rules must allow writes from this server-side flow.
 
-To learn more about Next.js, take a look at the following resources:
+## Local Setup
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open `http://localhost:3000`.
 
-## Deploy on Vercel
+## Firestore Collection
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Create a Firestore collection named `interviews`. Each evaluation stores:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `topic`
+- `experience`
+- `difficulty`
+- `question`
+- `answer`
+- `score`
+- `createdAt`
+
+## Vercel Deployment
+
+1. Push the project to GitHub.
+2. Import the repository into Vercel.
+3. Add the environment variables from `.env.local` in the Vercel project settings.
+4. Deploy.
+
+## API Endpoints
+
+### `POST /api/question`
+
+Generates one realistic backend interview question based on:
+
+- `topic`
+- `experience`
+- `difficulty`
+
+### `POST /api/evaluate`
+
+Evaluates the candidate answer and returns:
+
+- `score`
+- `strengths`
+- `missingConcepts`
+- `explanationForUser`
+- `followUpQuestion`
+- `skillBreakdown`
+- `learningResources`
