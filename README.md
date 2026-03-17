@@ -1,104 +1,54 @@
 # AI Backend Interview Gym
 
-Minimal AI web app for practicing backend interview questions with a polished developer-tool style UI. The app uses Next.js App Router, TypeScript, Tailwind CSS, Framer Motion, the Groq API, and Firestore persistence for completed interview sessions.
+Next.js frontend + NestJS backend for AI interview practice.
 
-## Stack
+## Architecture
 
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- Groq API
-- Firebase Firestore
-- Vercel
+- Frontend (`/`) only calls internal Next routes (`/api/*`) and never holds AI/Firestore secrets.
+- Next routes now act as proxy adapters to backend.
+- Backend (`/backend`) owns all sensitive integrations:
+  - xAI/Grok API key
+  - Firestore API key/project configuration
 
-## Features
+## Run Locally
 
-- Animated setup flow with topic, experience level, and interview heat mode
-- AI-generated backend interview questions using `llama-3.1-8b-instant` with compact prompts and capped output tokens
-- AI answer evaluation with score, strengths, missing concepts, better explanation, and learning resources
-- Reusable rotating loading states for interview generation and answer review
-- Firestore storage for interview history metadata
-- Vercel-ready App Router project structure
-
-## Project Structure
-
-```text
-app/
-  api/question/route.ts
-  api/evaluate/route.ts
-  interview/page.tsx
-  result/page.tsx
-  page.tsx
-components/
-  EvaluationCard.tsx
-  InterviewBox.tsx
-  InterviewSetup.tsx
-  LoadingScreen.tsx
-lib/
-  firebase.ts
-  groq.ts
-  types.ts
-```
-
-## Environment Variables
-
-Create `.env.local`:
+### 1) Backend
 
 ```bash
-GROQ_API_KEY=
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+cd backend
+cp .env.example .env
+# fill XAI_API_KEY, FIREBASE_API_KEY, FIREBASE_PROJECT_ID
+npm install
+npm run start:dev
 ```
 
-Note: the Firestore helper uses the Firestore REST API with the Firebase API key and project ID, so your Firestore security rules must allow writes from this server-side flow.
+Backend default: `http://127.0.0.1:3001`
 
-## Local Setup
+### 2) Frontend
 
 ```bash
+cd ..
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Frontend env (`.env.local`):
 
-## Firestore Collection
+```bash
+BACKEND_API_URL=http://127.0.0.1:3001
+```
 
-Create a Firestore collection named `interviews`. Each evaluation stores:
+No frontend secret env vars are required.
 
-- `topic`
-- `experience`
-- `difficulty`
-- `question`
-- `answer`
-- `score`
-- `createdAt`
+## API Compatibility
 
-## Vercel Deployment
+Frontend contracts are unchanged:
 
-1. Push the project to GitHub.
-2. Import the repository into Vercel.
-3. Add the environment variables from `.env.local` in the Vercel project settings.
-4. Deploy.
+- `POST /api/question`
+- `POST /api/evaluate`
+- `POST /api/session/start`
+- `POST /api/session/progress`
+- `POST /api/session/finish`
+- `GET /api/dashboard/interviews`
 
-## API Endpoints
-
-### `POST /api/question`
-
-Generates one realistic backend interview question based on:
-
-- `topic`
-- `experience`
-- `difficulty`
-
-### `POST /api/evaluate`
-
-Evaluates the candidate answer and returns:
-
-- `score`
-- `strengths`
-- `missingConcepts`
-- `explanationForUser`
-- `followUpQuestion`
-- `skillBreakdown`
-- `learningResources`
+These are proxied to backend endpoints with matching payload/response shapes.

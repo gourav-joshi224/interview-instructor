@@ -29,6 +29,22 @@ const TOPICS = [
     label: "Concurrency",
     description: "Locks, race conditions, consistency, and throughput concerns.",
   },
+  {
+    label: "JavaScript",
+    description: "Async flows, event loop behavior, and runtime tradeoffs.",
+  },
+  {
+    label: "Node.js",
+    description: "Streams, process model, APIs, and backend performance patterns.",
+  },
+  {
+    label: "Java",
+    description: "JVM internals, concurrency primitives, and memory behavior.",
+  },
+  {
+    label: "C",
+    description: "Memory management, pointers, performance, and threading basics.",
+  },
 ];
 
 const EXPERIENCE_LEVELS = [
@@ -60,6 +76,42 @@ const HEAT_MODES = [
     description: "Sharper edge with deeper follow-up expectations.",
   },
 ];
+
+const QUESTION_COUNTS = [
+  {
+    label: "5",
+    description: "Quick focused round.",
+  },
+  {
+    label: "10",
+    description: "Balanced full interview set.",
+  },
+  {
+    label: "15",
+    description: "Extended deep-dive session.",
+  },
+];
+
+const INTERVIEW_MODES = [
+  {
+    label: "Standard Interview",
+    description: "Generate questions from selected topic and interview setup.",
+  },
+  {
+    label: "Resume Based Interview",
+    description: "Upload a resume and get questions based on supported skills.",
+  },
+];
+
+const MAX_RESUME_SIZE_BYTES = 2 * 1024 * 1024;
+
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Failed to read the resume PDF."));
+    reader.readAsDataURL(file);
+  });
 
 type SelectionGroupProps = {
   title: string;
@@ -118,14 +170,57 @@ export function InterviewSetup() {
   const [topic, setTopic] = useState("");
   const [experience, setExperience] = useState("");
   const [difficulty, setDifficulty] = useState("");
+  const [totalQuestions, setTotalQuestions] = useState("5");
+  const [mode, setMode] = useState("Standard Interview");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
 
   const canStart = useMemo(
-    () => Boolean(topic && experience && difficulty),
-    [difficulty, experience, topic],
+    () =>
+      Boolean(
+        topic &&
+          experience &&
+          difficulty &&
+          totalQuestions &&
+          (mode !== "Resume Based Interview" || resumeFile),
+      ),
+    [difficulty, experience, mode, resumeFile, topic, totalQuestions],
   );
 
-  const startInterview = () => {
+  const startInterview = async () => {
     if (!canStart) {
+      return;
+    }
+
+    setError("");
+    const normalizedMode = mode === "Resume Based Interview" ? "resume" : "standard";
+
+    try {
+      if (normalizedMode === "resume") {
+        if (!resumeFile) {
+          setError("Upload a resume PDF to start resume-based interviews.");
+          return;
+        }
+
+        if (resumeFile.type !== "application/pdf") {
+          setError("Resume upload accepts PDF files only.");
+          return;
+        }
+
+        if (resumeFile.size > MAX_RESUME_SIZE_BYTES) {
+          setError("Resume PDF is too large. Keep it under 2 MB.");
+          return;
+        }
+
+        const resumeDataUrl = await fileToDataUrl(resumeFile);
+        sessionStorage.setItem("interview-resume-data-url", resumeDataUrl);
+        sessionStorage.setItem("interview-resume-file-name", resumeFile.name);
+      } else {
+        sessionStorage.removeItem("interview-resume-data-url");
+        sessionStorage.removeItem("interview-resume-file-name");
+      }
+    } catch {
+      setError("Could not read the resume PDF. Please try another file.");
       return;
     }
 
@@ -133,6 +228,8 @@ export function InterviewSetup() {
       topic,
       experience,
       difficulty,
+      mode: normalizedMode,
+      totalQuestions,
     });
 
     router.push(`/interview?${params.toString()}`);
@@ -166,6 +263,10 @@ export function InterviewSetup() {
           </p>
           <div className="grid gap-2 text-sm text-zinc-300">
             <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">Mode</span>
+              <span>{mode}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
               <span className="text-zinc-500">Topic</span>
               <span>{topic || "Not selected"}</span>
             </div>
@@ -177,11 +278,46 @@ export function InterviewSetup() {
               <span className="text-zinc-500">Heat mode</span>
               <span>{difficulty || "Not selected"}</span>
             </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">Questions</span>
+              <span>{totalQuestions || "Not selected"}</span>
+            </div>
           </div>
         </div>
       </motion.div>
 
       <div className="space-y-8">
+        <SelectionGroup
+          title="Interview Mode"
+          items={INTERVIEW_MODES}
+          value={mode}
+          onSelect={setMode}
+        />
+        {mode === "Resume Based Interview" ? (
+          <section className="glass-panel space-y-4">
+            <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Resume Upload</p>
+            <div className="rounded-2xl border border-dashed border-white/14 bg-white/[0.02] p-4">
+              <label className="block text-sm text-zinc-300">
+                Upload Resume (PDF)
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setResumeFile(file);
+                  }}
+                  className="mt-3 block w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-200 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-500/20 file:px-3 file:py-1.5 file:text-sm file:text-blue-100 hover:file:bg-blue-500/30"
+                />
+              </label>
+              <p className="mt-3 text-xs text-zinc-500">
+                Supported: PDF only, max 2 MB. We use supported skills only.
+              </p>
+            </div>
+            {resumeFile ? (
+              <p className="text-sm text-cyan-300">Selected: {resumeFile.name}</p>
+            ) : null}
+          </section>
+        ) : null}
         <SelectionGroup
           title="Topic"
           items={TOPICS}
@@ -200,6 +336,12 @@ export function InterviewSetup() {
           value={difficulty}
           onSelect={setDifficulty}
         />
+        <SelectionGroup
+          title="Question Count"
+          items={QUESTION_COUNTS}
+          value={totalQuestions}
+          onSelect={setTotalQuestions}
+        />
       </div>
 
       <motion.div
@@ -211,11 +353,14 @@ export function InterviewSetup() {
         <p className="text-sm text-zinc-500">
           Smooth prompt generation, quick evaluation, and minimal backend setup.
         </p>
+        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
         <motion.button
           type="button"
           whileHover={canStart ? { scale: 1.02 } : undefined}
           whileTap={canStart ? { scale: 0.985 } : undefined}
-          onClick={startInterview}
+          onClick={() => {
+            void startInterview();
+          }}
           disabled={!canStart}
           className="inline-flex h-12 items-center justify-center rounded-2xl bg-blue-500 px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
         >

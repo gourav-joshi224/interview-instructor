@@ -3,13 +3,22 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EvaluationCard } from "@/components/EvaluationCard";
+import { InterviewReportCard } from "@/components/InterviewReportCard";
 import type { StoredInterviewResult } from "@/lib/types";
+import type { FinishResponse } from "@/lib/view-types";
 
 export default function ResultPage() {
   const [result, setResult] = useState<StoredInterviewResult | null>(null);
+  const [report, setReport] = useState<FinishResponse | null>(null);
 
   useEffect(() => {
     try {
+      const storedReport = sessionStorage.getItem("latest-interview-report");
+      if (storedReport) {
+        setReport(JSON.parse(storedReport) as FinishResponse);
+        return;
+      }
+
       const storedResult = sessionStorage.getItem("latest-interview-result");
 
       if (!storedResult) {
@@ -24,7 +33,9 @@ export default function ResultPage() {
 
   return (
     <main className="page-shell px-6 py-10 sm:px-8 lg:px-12">
-      {result ? (
+      {report ? (
+        <InterviewReportCard report={report} />
+      ) : result ? (
         <EvaluationCard result={result} />
       ) : (
         <div className="glass-panel mx-auto max-w-2xl space-y-4 text-center">

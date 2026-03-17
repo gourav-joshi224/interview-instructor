@@ -3,27 +3,27 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LoadingScreen } from "./LoadingScreen";
-import type { StoredInterviewResult } from "@/lib/types";
+import type { InterviewFinalReport, InterviewSessionAnswer } from "@/lib/types";
 
-const QUESTION_LOADING_MESSAGES = [
-  "Preparing interview...",
-  "Selecting question...",
-  "Consulting senior engineers...",
+const START_LOADING_MESSAGES = [
+  "Preparing interview session...",
+  "Generating first question...",
+  "Syncing session state...",
 ];
 
-const EVALUATION_LOADING_MESSAGES = [
-  "Analyzing answer...",
-  "Evaluating technical accuracy...",
-  "Checking missing concepts...",
-  "Preparing feedback...",
+const NEXT_LOADING_MESSAGES = [
+  "Saving your answer...",
+  "Generating next question...",
+  "Preparing follow-up challenge...",
 ];
 
-type EvaluateResponse = Omit<
-  StoredInterviewResult,
-  "topic" | "experience" | "difficulty" | "question" | "answer"
->;
+const FINISH_LOADING_MESSAGES = [
+  "Finalizing interview...",
+  "Analyzing full conversation...",
+  "Preparing final report...",
+];
 
 const wait = (duration: number) =>
   new Promise((resolve) => window.setTimeout(resolve, duration));
@@ -37,17 +37,42 @@ async function readApiError(response: Response, fallback: string) {
   }
 }
 
+type QuestionResponse = {
+  question?: string;
+  skill?: string | null;
+};
+
+type FinishResponse = {
+  sessionId: string;
+  topic: string;
+  experience: string;
+  difficulty: string;
+  totalQuestions: number;
+  answers: InterviewSessionAnswer[];
+  status: "completed";
+  report: InterviewFinalReport;
+};
+
 export function InterviewBox() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const topic = searchParams.get("topic") ?? "";
   const experience = searchParams.get("experience") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "";
+  const mode = searchParams.get("mode") === "resume" ? "resume" : "standard";
+  const followUpQuestion = (searchParams.get("followUpQuestion") ?? "").trim();
+  const totalQuestionsParam = Number(searchParams.get("totalQuestions") ?? "5");
+  const totalQuestions = [5, 10, 15].includes(totalQuestionsParam) ? totalQuestionsParam : 5;
 
+  const [sessionId, setSessionId] = useState("");
   const [question, setQuestion] = useState("");
+  const [selectedSkill, setSelectedSkill] = useState("");
+  const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
   const [answer, setAnswer] = useState("");
-  const [loadingQuestion, setLoadingQuestion] = useState(true);
-  const [evaluating, setEvaluating] = useState(false);
+  const [answers, setAnswers] = useState<InterviewSessionAnswer[]>([]);
+  const [loadingStart, setLoadingStart] = useState(true);
+  const [loadingNext, setLoadingNext] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState("");
 
   const missingSetup = useMemo(
@@ -55,86 +80,51 @@ export function InterviewBox() {
     [difficulty, experience, topic],
   );
 
+  const isFinalQuestion = currentQuestionNumber >= totalQuestions;
+
+  const requestQuestion = useCallback(async () => {
+    const response = await fetch("/api/question", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        topic,
+        experience,
+        difficulty,
+        mode,
+        resumeDataUrl:
+          mode === "resume" ? sessionStorage.getItem("interview-resume-data-url") : undefined,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        await readApiError(response, "Unable to generate the next interview question."),
+      );
+    }
+
+    const data = (await response.json()) as QuestionResponse;
+    return {
+      question: data.question ?? "",
+      skill: data.skill ?? "",
+    };
+  }, [difficulty, experience, mode, topic]);
+
   useEffect(() => {
     if (missingSetup) {
-      setLoadingQuestion(false);
+      setLoadingStart(false);
       return;
     }
 
     let active = true;
 
-    const createQuestion = async () => {
-      setLoadingQuestion(true);
+    const initializeSession = async () => {
+      setLoadingStart(true);
       setError("");
 
       try {
-        const [response] = await Promise.all([
-          fetch("/api/question", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              topic,
-              experience,
-              difficulty,
-            }),
-          }),
-          wait(2400),
-        ]);
-
-        if (!response.ok) {
-          throw new Error(
-            await readApiError(
-              response,
-              "Unable to prepare an interview question right now.",
-            ),
-          );
-        }
-
-        const data = (await response.json()) as { question?: string; error?: string };
-
-        if (!active) {
-          return;
-        }
-
-        setQuestion(data.question ?? "");
-      } catch (requestError) {
-        if (!active) {
-          return;
-        }
-
-        const message =
-          requestError instanceof Error
-            ? requestError.message
-            : "Something went wrong while generating the interview question.";
-        setError(message);
-      } finally {
-        if (active) {
-          setLoadingQuestion(false);
-        }
-      }
-    };
-
-    void createQuestion();
-
-    return () => {
-      active = false;
-    };
-  }, [difficulty, experience, missingSetup, topic]);
-
-  const submitAnswer = async () => {
-    if (!question || !answer.trim()) {
-      setError("Add your answer before asking for an evaluation.");
-      return;
-    }
-
-    setEvaluating(true);
-    setError("");
-
-    try {
-      const [response] = await Promise.all([
-        fetch("/api/evaluate", {
+        const startPromise = fetch("/api/session/start", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -143,57 +133,193 @@ export function InterviewBox() {
             topic,
             experience,
             difficulty,
-            question,
-            answer,
+            totalQuestions,
+          }),
+        });
+
+        const [startResponse, firstQuestion] = followUpQuestion
+          ? await Promise.all([startPromise, Promise.resolve({ question: followUpQuestion, skill: "" }), wait(1000)])
+          : await Promise.all([startPromise, requestQuestion(), wait(1500)]);
+
+        if (!startResponse.ok) {
+          throw new Error(
+            await readApiError(startResponse, "Unable to start interview session."),
+          );
+        }
+
+        const data = (await startResponse.json()) as { sessionId?: string };
+
+        if (!active) {
+          return;
+        }
+
+        if (!data.sessionId || !firstQuestion.question) {
+          throw new Error("Failed to initialize interview session.");
+        }
+
+        setSessionId(data.sessionId);
+        setQuestion(firstQuestion.question);
+        setSelectedSkill(firstQuestion.skill);
+      } catch (requestError) {
+        if (!active) {
+          return;
+        }
+
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "Something went wrong while starting the interview.";
+        setError(message);
+      } finally {
+        if (active) {
+          setLoadingStart(false);
+        }
+      }
+    };
+
+    void initializeSession();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    difficulty,
+    experience,
+    followUpQuestion,
+    missingSetup,
+    mode,
+    requestQuestion,
+    topic,
+    totalQuestions,
+  ]);
+
+  const moveToNextQuestion = async () => {
+    if (!answer.trim() || !question || !sessionId || isFinalQuestion) {
+      setError("Answer the current question before moving ahead.");
+      return;
+    }
+
+    const nextAnswers = [...answers, { question, answer: answer.trim() }];
+    setLoadingNext(true);
+    setError("");
+
+    try {
+      const [progressResponse, nextQuestion] = await Promise.all([
+        fetch("/api/session/progress", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            topic,
+            experience,
+            difficulty,
+            totalQuestions,
+            answers: nextAnswers,
           }),
         }),
-        wait(2600),
+        requestQuestion(),
+        wait(1200),
       ]);
 
-      if (!response.ok) {
+      if (!progressResponse.ok) {
         throw new Error(
-          await readApiError(response, "Unable to evaluate the answer right now."),
+          await readApiError(progressResponse, "Unable to save current interview progress."),
         );
       }
 
-      const data = (await response.json()) as EvaluateResponse;
-      const result: StoredInterviewResult = {
-        topic,
-        experience,
-        difficulty,
-        question,
-        answer,
-        ...data,
-      };
+      if (!nextQuestion.question) {
+        throw new Error("Could not generate the next interview question.");
+      }
 
-      sessionStorage.setItem("latest-interview-result", JSON.stringify(result));
+      setAnswers(nextAnswers);
+      setCurrentQuestionNumber((value) => value + 1);
+      setQuestion(nextQuestion.question);
+      setSelectedSkill(nextQuestion.skill);
+      setAnswer("");
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Something went wrong while moving to the next question.";
+      setError(message);
+    } finally {
+      setLoadingNext(false);
+    }
+  };
+
+  const finishInterview = async () => {
+    if (!answer.trim() || !question || !sessionId) {
+      setError("Answer the final question before finishing the interview.");
+      return;
+    }
+
+    const finalAnswers = [...answers, { question, answer: answer.trim() }];
+    setFinishing(true);
+    setError("");
+
+    try {
+      const [finishResponse] = await Promise.all([
+        fetch("/api/session/finish", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            answers: finalAnswers,
+          }),
+        }),
+        wait(1800),
+      ]);
+
+      if (!finishResponse.ok) {
+        throw new Error(
+          await readApiError(finishResponse, "Unable to finish interview right now."),
+        );
+      }
+
+      const report = (await finishResponse.json()) as FinishResponse;
+      sessionStorage.setItem("latest-interview-report", JSON.stringify(report));
+      sessionStorage.removeItem("latest-interview-result");
       router.push("/result");
     } catch (requestError) {
       const message =
         requestError instanceof Error
           ? requestError.message
-          : "Something went wrong while evaluating the answer.";
+          : "Something went wrong while finishing the interview.";
       setError(message);
-      setEvaluating(false);
+      setFinishing(false);
     }
   };
 
-  if (loadingQuestion) {
+  if (loadingStart) {
     return (
       <LoadingScreen
         title="Starting Interview"
-        messages={QUESTION_LOADING_MESSAGES}
-        subtitle="We are tailoring a backend question to your selected topic, experience level, and heat mode."
+        messages={START_LOADING_MESSAGES}
+        subtitle="Setting up your interview session and generating the first question."
       />
     );
   }
 
-  if (evaluating) {
+  if (loadingNext) {
     return (
       <LoadingScreen
-        title="Evaluating Answer"
-        messages={EVALUATION_LOADING_MESSAGES}
-        subtitle="Your answer is being reviewed for technical depth, clarity, and the concepts you may want to strengthen."
+        title="Next Question"
+        messages={NEXT_LOADING_MESSAGES}
+        subtitle="Saving your response and preparing the next challenge."
+      />
+    );
+  }
+
+  if (finishing) {
+    return (
+      <LoadingScreen
+        title="Final Analysis"
+        messages={FINISH_LOADING_MESSAGES}
+        subtitle="Analyzing your full interview conversation for final report generation."
       />
     );
   }
@@ -208,7 +334,7 @@ export function InterviewBox() {
           Start from the setup screen first.
         </h1>
         <p className="text-sm leading-7 text-zinc-400">
-          Topic, experience, and heat mode are required to generate the interview.
+          Topic, experience, and heat mode are required to start the interview session.
         </p>
         <Link
           href="/"
@@ -229,10 +355,10 @@ export function InterviewBox() {
       >
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-            Active Interview
+            Active Interview Session
           </p>
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
-            Backend practice session
+            Question {currentQuestionNumber} / {totalQuestions}
           </h1>
         </div>
 
@@ -242,6 +368,18 @@ export function InterviewBox() {
           <span>{experience}</span>
           <span className="text-zinc-600">/</span>
           <span>{difficulty}</span>
+          <span className="text-zinc-600">/</span>
+          <span>{mode === "resume" ? "Resume mode" : "Standard mode"}</span>
+          <Link
+            href="/"
+            aria-label="Go to home"
+            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/12 bg-white/[0.03] text-zinc-300 transition hover:border-blue-400/40 hover:text-blue-300"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 10.5 12 3l9 7.5" />
+              <path d="M5 9.5V21h14V9.5" />
+            </svg>
+          </Link>
         </div>
       </motion.div>
 
@@ -252,11 +390,14 @@ export function InterviewBox() {
         className="glass-panel space-y-4"
       >
         <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-          Interview Question
+          Current Interview Question
         </p>
         <p className="text-xl leading-8 text-zinc-100">
           {question || "No question available."}
         </p>
+        {selectedSkill ? (
+          <p className="text-sm text-cyan-300">Skill focus: {selectedSkill}</p>
+        ) : null}
       </motion.div>
 
       <motion.div
@@ -282,23 +423,42 @@ export function InterviewBox() {
         <textarea
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
-          placeholder="Walk through your design or debugging thought process here..."
+          placeholder="Walk through your approach for this question..."
           className="min-h-[220px] w-full rounded-3xl border border-white/10 bg-zinc-950/80 px-5 py-4 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-blue-400/50"
         />
 
         {error ? <p className="text-sm text-rose-300">{error}</p> : null}
 
-        <div className="flex justify-end">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.985 }}
-            onClick={submitAnswer}
-            disabled={!answer.trim()}
-            className="inline-flex h-12 items-center justify-center rounded-2xl bg-blue-500 px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
-          >
-            Submit Answer
-          </motion.button>
+        <div className="flex justify-end gap-3">
+          {!isFinalQuestion ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.985 }}
+              onClick={() => {
+                void moveToNextQuestion();
+              }}
+              disabled={!answer.trim()}
+              className="inline-flex h-12 items-center justify-center rounded-2xl bg-blue-500 px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
+            >
+              Next Question
+            </motion.button>
+          ) : null}
+
+          {isFinalQuestion ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.985 }}
+              onClick={() => {
+                void finishInterview();
+              }}
+              disabled={!answer.trim()}
+              className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
+            >
+              Finish Interview
+            </motion.button>
+          ) : null}
         </div>
       </motion.div>
     </div>
