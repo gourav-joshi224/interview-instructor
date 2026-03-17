@@ -1,12 +1,19 @@
 import { DashboardClient } from "@/components/DashboardClient";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { buildDashboardData } from "@/lib/dashboard";
-import { getRecentInterviews } from "@/lib/firebase";
+import type { StoredInterviewResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const interviews = await getRecentInterviews(20);
+  const backendUrl = process.env.BACKEND_API_URL ?? "http://127.0.0.1:3001";
+  const response = await fetch(`${backendUrl}/dashboard/interviews?limit=20`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  const interviews = response.ok
+    ? (((await response.json()) as StoredInterviewResult[]) ?? [])
+    : [];
   const data = buildDashboardData(interviews);
 
   return (

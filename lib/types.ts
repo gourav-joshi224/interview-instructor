@@ -2,6 +2,9 @@ export type InterviewSetup = {
   topic: string;
   experience: string;
   difficulty: string;
+  mode?: "standard" | "resume";
+  selectedSkill?: string;
+  totalQuestions?: number;
 };
 
 export type EvaluationResource = {
@@ -21,6 +24,7 @@ export type EvaluationResult = {
   strengths: string[];
   missingConcepts: string[];
   explanationForUser: string;
+  idealAnswer: string;
   followUpQuestion: string;
   skillBreakdown: SkillBreakdown;
   learningResources: EvaluationResource[];
@@ -50,4 +54,34 @@ export type DashboardData = {
     score: number;
   }>;
   insight: DashboardInsight;
+};
+
+export type SessionStatus = "in_progress" | "completed";
+
+export type InterviewSessionAnswer = {
+  question: string;
+  answer: string;
+};
+
+export type DynamicSkillScore = {
+  skill: string;
+  score: number;
+};
+
+export type InterviewFinalReport = {
+  overallScore: number;
+  strengths: string[];
+  weakAreas: string[];
+  communicationFeedback: string;
+  technicalFeedback: string;
+  improvementPlan: string;
+  skillBreakdown: DynamicSkillScore[];
+  learningResources: EvaluationResource[];
+};
+
+export type InterviewSessionSummary = InterviewSetup & {
+  sessionId?: string;
+  status: SessionStatus;
+  answers: InterviewSessionAnswer[];
+  report?: InterviewFinalReport | null;
 };

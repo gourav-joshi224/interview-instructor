@@ -2,7 +2,9 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { SkillProgress } from "@/components/SkillProgress";
+import { FollowUpQuestionCard } from "@/components/FollowUpQuestionCard";
+import { LearningResourceCard } from "@/components/LearningResourceCard";
+import { SkillBreakdownChart } from "@/components/SkillBreakdownChart";
 import type { StoredInterviewResult } from "@/lib/types";
 
 type EvaluationCardProps = {
@@ -94,49 +96,17 @@ export function EvaluationCard({ result }: EvaluationCardProps) {
               <span className="text-zinc-500">Heat mode</span>
               <span>{result.difficulty}</span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="glass-panel space-y-4">
-          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-            Your Answer
-          </p>
-          <p className="text-sm leading-7 text-zinc-300">{result.answer}</p>
-        </div>
-
-        <div className="glass-panel space-y-4">
-          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-            Explanation For You
-          </p>
-          <p className="text-sm leading-7 text-zinc-300">{result.explanationForUser}</p>
-        </div>
-
-        <div className="glass-panel space-y-4">
-          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-            Learning Resources
-          </p>
-          {result.learningResources.length > 0 ? (
-            <div className="space-y-3">
-              {result.learningResources.map((resource) => (
-                <a
-                  key={resource.url}
-                  href={resource.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 transition hover:border-blue-400/30 hover:bg-blue-500/[0.06]"
-                >
-                  <p className="text-sm font-medium text-zinc-100">{resource.title}</p>
-                  <p className="mt-1 text-sm text-blue-300">{resource.url}</p>
-                </a>
-              ))}
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-zinc-500">Mode</span>
+              <span>{result.mode === "resume" ? "Resume Based" : "Standard"}</span>
             </div>
-          ) : (
-            <p className="text-sm leading-7 text-zinc-400">
-              No resource links were returned for this evaluation.
-            </p>
-          )}
+            {result.selectedSkill ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-500">Skill focus</span>
+                <span>{result.selectedSkill}</span>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -153,16 +123,76 @@ export function EvaluationCard({ result }: EvaluationCardProps) {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="glass-panel space-y-4">
           <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
+            How a Strong Candidate Would Answer
+          </p>
+          <p className="text-sm leading-7 text-zinc-300">{result.idealAnswer}</p>
+        </div>
+
+        <div className="glass-panel space-y-4">
+          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
+            Explanation For You
+          </p>
+          <p className="text-sm leading-7 text-zinc-300">{result.explanationForUser}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="glass-panel space-y-4">
+          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
             Follow Up Question
           </p>
-          <p className="text-sm leading-7 text-zinc-300">{result.followUpQuestion}</p>
+          <FollowUpQuestionCard
+            followUpQuestion={result.followUpQuestion}
+            topic={result.topic}
+            experience={result.experience}
+            difficulty={result.difficulty}
+            mode={result.mode}
+          />
         </div>
 
         <div className="glass-panel space-y-4">
           <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
             Skill Breakdown
           </p>
-          <SkillProgress skills={result.skillBreakdown} />
+          <SkillBreakdownChart
+            topic={result.topic}
+            score={result.score}
+            missingConcepts={result.missingConcepts}
+            skillBreakdown={result.skillBreakdown}
+          />
+        </div>
+      </div>
+
+      <div className="glass-panel space-y-4">
+        <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Learning Resources</p>
+        {result.learningResources.length > 0 ? (
+          <div className="space-y-3">
+            {result.learningResources.map((resource) => (
+              <LearningResourceCard key={resource.url} resource={resource} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm leading-7 text-zinc-400">
+            No mapped learning resources available for this topic yet.
+          </p>
+        )}
+      </div>
+
+      <div className="glass-panel space-y-4">
+        <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Your Answer</p>
+        <p className="text-sm leading-7 text-zinc-300">{result.answer}</p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="glass-panel space-y-4">
+          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Question</p>
+          <p className="text-sm leading-7 text-zinc-300">{result.question}</p>
+        </div>
+        <div className="glass-panel space-y-4">
+          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Session Snapshot</p>
+          <p className="text-sm leading-7 text-zinc-300">
+            {result.topic} / {result.experience} / {result.difficulty}
+          </p>
         </div>
       </div>
 

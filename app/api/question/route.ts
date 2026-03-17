@@ -1,58 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ensureGroqKey, groq } from "@/lib/groq";
-import { buildQuestionPrompt, parseJsonObject } from "@/lib/interview-ai";
+import { NextRequest, NextResponse } from 'next/server';
+
+const BACKEND_URL = process.env.BACKEND_API_URL ?? 'http://127.0.0.1:3001';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as {
-      topic?: string;
-      experience?: string;
-      difficulty?: string;
-    };
+    const body = await request.json();
 
-    if (!body.topic || !body.experience || !body.difficulty) {
-      return NextResponse.json(
-        { error: "Topic, experience, and difficulty are required." },
-        { status: 400 },
-      );
-    }
-
-    ensureGroqKey();
-
-    const response = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a senior backend interviewer. Return only a valid JSON object with a single question field.",
-        },
-        {
-          role: "user",
-          content: buildQuestionPrompt({
-            topic: body.topic,
-            experience: body.experience,
-            difficulty: body.difficulty,
-          }),
-        },
-      ],
-      max_completion_tokens: 80,
+    const response = await fetch(`${BACKEND_URL}/interview/question`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
     });
 
-    const content = response.choices[0]?.message?.content?.trim() ?? "";
-    const parsed = parseJsonObject(content) as { question?: unknown };
-    const question = typeof parsed.question === "string" ? parsed.question.trim() : "";
-
-    if (!question) {
-      throw new Error("Model returned an empty question.");
-    }
-
-    return NextResponse.json({ question });
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    return NextResponse.json(payload, { status: response.status });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to generate interview question.";
-
-    return NextResponse.json({ error: message }, { status: 500 });
+    const details = error instanceof Error ? error.message : 'Unknown proxy error';
+    return NextResponse.json({ error: 'Failed to generate interview question.', details }, { status: 500 });
   }
 }

@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const response = await fetch(`${BACKEND_URL}/interview/evaluate`, {
+    const response = await fetch(`${BACKEND_URL}/session/progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -17,6 +17,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {
     const details = error instanceof Error ? error.message : 'Unknown proxy error';
-    return NextResponse.json({ error: 'Failed to evaluate interview answer.', details }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to save interview progress.', details }, { status: 500 });
   }
 }
