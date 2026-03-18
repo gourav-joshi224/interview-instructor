@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type FollowUpQuestionCardProps = {
@@ -34,7 +35,7 @@ export function FollowUpQuestionCard({
 
   if (!followUpQuestion.trim()) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm text-zinc-400">
+      <div className="rounded-[1.1rem] border border-[rgba(65,105,67,0.14)] bg-[var(--color-surface-light)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
         Follow-up question is not available for this response.
       </div>
     );
@@ -44,12 +45,13 @@ export function FollowUpQuestionCard({
     <button
       type="button"
       onClick={handleClick}
-      className="block w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/[0.06] px-4 py-3 text-left text-sm leading-7 text-zinc-200 transition hover:border-cyan-300/45 hover:bg-cyan-500/[0.12]"
+      className="block w-full rounded-[1.1rem] border border-[rgba(65,105,67,0.18)] bg-[rgba(176,236,112,0.18)] px-4 py-4 text-left text-sm leading-7 text-[var(--color-text-primary)] transition hover:border-[rgba(65,105,67,0.3)] hover:bg-[rgba(176,236,112,0.26)]"
     >
       <p>{followUpQuestion}</p>
-      <p className="mt-2 text-xs uppercase tracking-[0.24em] text-cyan-300">
-        Click to answer this follow-up
-      </p>
+      <span className="mt-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-primary-dark)]">
+        Answer this follow-up
+        <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.8} />
+      </span>
     </button>
   );
 }

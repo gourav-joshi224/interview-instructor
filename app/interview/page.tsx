@@ -1,3 +1,4 @@
+import { FullWidthSection } from "@/components/FullWidthSection";
 import { Suspense } from "react";
 import { InterviewBox } from "@/components/InterviewBox";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -6,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default function InterviewPage() {
   return (
-    <main className="page-shell px-6 py-10 sm:px-8 lg:px-12">
+    <FullWidthSection className="page-shell py-[var(--space-2xl)] sm:py-[var(--space-3xl)]" contentClassName="space-y-6">
       <Suspense
         fallback={
           <LoadingScreen
@@ -21,6 +22,6 @@ export default function InterviewPage() {
       >
         <InterviewBox />
       </Suspense>
-    </main>
+    </FullWidthSection>
   );
 }

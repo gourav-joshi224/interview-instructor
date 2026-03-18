@@ -1,3 +1,4 @@
+import { FullWidthSection } from "@/components/FullWidthSection";
 import { DashboardClient } from "@/components/DashboardClient";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { buildDashboardData } from "@/lib/dashboard";
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
   const data = buildDashboardData(interviews);
 
   return (
-    <main className="page-shell px-6 py-10 sm:px-8 lg:px-12">
+    <FullWidthSection className="page-shell py-[var(--space-2xl)] sm:py-[var(--space-3xl)]" contentClassName="space-y-6">
       {interviews.length > 0 ? (
         <DashboardClient data={data} />
       ) : (
@@ -31,6 +32,6 @@ export default async function DashboardPage() {
           subtitle="We will show skill averages, score trends, and study guidance once interview history is available."
         />
       )}
-    </main>
+    </FullWidthSection>
   );
 }

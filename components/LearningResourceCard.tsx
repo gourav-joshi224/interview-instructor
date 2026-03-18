@@ -10,10 +10,10 @@ export function LearningResourceCard({ resource }: LearningResourceCardProps) {
       href={resource.url}
       target="_blank"
       rel="noreferrer"
-      className="block rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 transition hover:border-blue-400/30 hover:bg-blue-500/[0.06]"
+      className="block rounded-[1.1rem] border border-[rgba(65,105,67,0.14)] bg-[var(--color-surface-light)] px-4 py-4 transition hover:border-[rgba(65,105,67,0.28)] hover:bg-[rgba(176,236,112,0.2)]"
     >
-      <p className="text-sm font-medium text-zinc-100">{resource.title}</p>
-      <p className="mt-1 text-sm text-blue-300">{resource.url}</p>
+      <p className="text-sm font-medium text-[var(--color-text-primary)]">{resource.title}</p>
+      <p className="mt-1 break-all text-sm text-[var(--color-primary)]">{resource.url}</p>
     </a>
   );
 }

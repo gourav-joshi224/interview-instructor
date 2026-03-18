@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import { AppLayout } from "@/components/AppLayout";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Backend Interview Gym",
+  title: "BackendGym",
   description: "Practice backend interviews with AI-generated questions and feedback.",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -13,7 +18,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <AppLayout>{children}</AppLayout>
+      </body>
     </html>
   );
 }
