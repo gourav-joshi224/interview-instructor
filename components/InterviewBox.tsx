@@ -1,9 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Home, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Logo } from "@/components/Logo";
 import { LoadingScreen } from "./LoadingScreen";
 import type { InterviewFinalReport, InterviewSessionAnswer } from "@/lib/types";
 
@@ -99,9 +101,7 @@ export function InterviewBox() {
     });
 
     if (!response.ok) {
-      throw new Error(
-        await readApiError(response, "Unable to generate the next interview question."),
-      );
+      throw new Error(await readApiError(response, "Unable to generate the next interview question."));
     }
 
     const data = (await response.json()) as QuestionResponse;
@@ -142,9 +142,7 @@ export function InterviewBox() {
           : await Promise.all([startPromise, requestQuestion(), wait(1500)]);
 
         if (!startResponse.ok) {
-          throw new Error(
-            await readApiError(startResponse, "Unable to start interview session."),
-          );
+          throw new Error(await readApiError(startResponse, "Unable to start interview session."));
         }
 
         const data = (await startResponse.json()) as { sessionId?: string };
@@ -224,9 +222,7 @@ export function InterviewBox() {
       ]);
 
       if (!progressResponse.ok) {
-        throw new Error(
-          await readApiError(progressResponse, "Unable to save current interview progress."),
-        );
+        throw new Error(await readApiError(progressResponse, "Unable to save current interview progress."));
       }
 
       if (!nextQuestion.question) {
@@ -275,9 +271,7 @@ export function InterviewBox() {
       ]);
 
       if (!finishResponse.ok) {
-        throw new Error(
-          await readApiError(finishResponse, "Unable to finish interview right now."),
-        );
+        throw new Error(await readApiError(finishResponse, "Unable to finish interview right now."));
       }
 
       const report = (await finishResponse.json()) as FinishResponse;
@@ -326,96 +320,106 @@ export function InterviewBox() {
 
   if (missingSetup) {
     return (
-      <div className="glass-panel mx-auto max-w-2xl space-y-4 text-center">
-        <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">
-          Missing setup
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-50">
-          Start from the setup screen first.
-        </h1>
-        <p className="text-sm leading-7 text-zinc-400">
+      <div className="surface-card mx-auto max-w-2xl space-y-4 p-8 text-center">
+        <p className="section-kicker">Missing setup</p>
+        <h1 className="text-type-h2 text-[var(--color-text-primary)]">Start from the setup screen first.</h1>
+        <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
           Topic, experience, and heat mode are required to start the interview session.
         </p>
-        <Link
-          href="/"
-          className="inline-flex h-11 items-center justify-center rounded-2xl bg-blue-500 px-5 text-sm font-medium text-white"
-        >
-          Back to setup
-        </Link>
+        <div className="pt-2">
+          <Link href="/" className="primary-btn">
+            Back to setup
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <motion.div
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between"
+        className="surface-card overflow-hidden"
       >
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-            Active Interview Session
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
-            Question {currentQuestionNumber} / {totalQuestions}
-          </h1>
+        <div className="bg-gradient-balance-card px-6 py-7 text-[var(--color-text-on-dark)] sm:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Logo mode="small" tone="light" ariaLabel="BackendGym interview logo" className="h-9 w-9" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">
+                  Active Interview Session
+                </p>
+              </div>
+              <h1 className="text-type-h1 text-white">
+                Question {currentQuestionNumber} / {totalQuestions}
+              </h1>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-type-caption uppercase text-white/72">
+              <span>{topic}</span>
+              <span>/</span>
+              <span>{experience}</span>
+              <span>/</span>
+              <span>{difficulty}</span>
+              <span>/</span>
+              <span>{mode === "resume" ? "Resume mode" : "Standard mode"}</span>
+              <Link
+                href="/"
+                aria-label="Go to home"
+                className="ml-0 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white transition hover:bg-white/16 sm:ml-2"
+              >
+                <Home className="h-4 w-4" strokeWidth={1.8} />
+              </Link>
+            </div>
+          </div>
         </div>
 
-        <div className="glass-panel flex flex-wrap gap-3 text-sm text-zinc-300">
-          <span>{topic}</span>
-          <span className="text-zinc-600">/</span>
-          <span>{experience}</span>
-          <span className="text-zinc-600">/</span>
-          <span>{difficulty}</span>
-          <span className="text-zinc-600">/</span>
-          <span>{mode === "resume" ? "Resume mode" : "Standard mode"}</span>
-          <Link
-            href="/"
-            aria-label="Go to home"
-            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/12 bg-white/[0.03] text-zinc-300 transition hover:border-blue-400/40 hover:text-blue-300"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 10.5 12 3l9 7.5" />
-              <path d="M5 9.5V21h14V9.5" />
-            </svg>
-          </Link>
+        <div className="bg-[rgba(255,255,255,0.4)] px-6 py-4 sm:px-8">
+          <div className="flex flex-wrap gap-2 text-type-caption uppercase text-[var(--color-text-secondary)]">
+            <span>{topic}</span>
+            <span>/</span>
+            <span>{experience}</span>
+            <span>/</span>
+            <span>{mode === "resume" ? "Resume" : "Standard"}</span>
+            <span>/</span>
+            <span>#{currentQuestionNumber} of {totalQuestions}</span>
+          </div>
         </div>
-      </motion.div>
+      </motion.section>
 
-      <motion.div
+      <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="glass-panel space-y-4"
+        className="surface-card space-y-4 p-6 sm:p-8"
       >
-        <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-          Current Interview Question
-        </p>
-        <p className="text-xl leading-8 text-zinc-100">
+        <p className="section-kicker">Current Interview Question</p>
+        <p className="max-w-5xl text-type-h3 text-[var(--color-text-primary)]">
           {question || "No question available."}
         </p>
         {selectedSkill ? (
-          <p className="text-sm text-cyan-300">Skill focus: {selectedSkill}</p>
+          <div className="inline-flex items-center gap-2 rounded-full bg-[rgba(176,236,112,0.22)] px-4 py-2 text-sm font-medium text-[var(--color-primary-dark)]">
+            <Sparkles className="h-4 w-4" strokeWidth={1.8} />
+            Skill focus: {selectedSkill}
+          </div>
         ) : null}
-      </motion.div>
+      </motion.section>
 
-      <motion.div
+      <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="glass-panel space-y-4"
+        className="surface-card space-y-4 p-6 sm:p-8"
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-              Your Answer
-            </p>
-            <p className="mt-2 text-sm text-zinc-400">
+            <p className="section-kicker">Your Answer</p>
+            <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
               Explain your reasoning clearly, including tradeoffs and edge cases.
             </p>
           </div>
-          <Link href="/" className="text-sm text-zinc-400 transition hover:text-zinc-200">
+          <Link href="/" className="text-sm font-medium text-[var(--color-primary)] transition hover:text-[var(--color-primary-dark)]">
             Reset
           </Link>
         </div>
@@ -424,43 +428,39 @@ export function InterviewBox() {
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
           placeholder="Walk through your approach for this question..."
-          className="min-h-[220px] w-full rounded-3xl border border-white/10 bg-zinc-950/80 px-5 py-4 text-base text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-blue-400/50"
+          className="min-h-[260px] w-full rounded-[1rem] border-2 border-transparent bg-[var(--color-surface-light)] px-5 py-4 text-base leading-7 text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent)] focus:bg-white"
         />
 
-        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+        {error ? <p className="text-sm font-medium text-[var(--color-danger)]">{error}</p> : null}
 
         <div className="flex justify-end gap-3">
           {!isFinalQuestion ? (
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.985 }}
               onClick={() => {
                 void moveToNextQuestion();
               }}
               disabled={!answer.trim()}
-              className="inline-flex h-12 items-center justify-center rounded-2xl bg-blue-500 px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
+              className="primary-btn disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next Question
-            </motion.button>
+            </button>
           ) : null}
 
           {isFinalQuestion ? (
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.985 }}
               onClick={() => {
                 void finishInterview();
               }}
               disabled={!answer.trim()}
-              className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-6 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500"
+              className="primary-btn disabled:cursor-not-allowed disabled:opacity-40"
             >
               Finish Interview
-            </motion.button>
+            </button>
           ) : null}
         </div>
-      </motion.div>
+      </motion.section>
     </div>
   );
 }

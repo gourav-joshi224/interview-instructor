@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EvaluationCard } from "@/components/EvaluationCard";
+import { FullWidthSection } from "@/components/FullWidthSection";
 import { InterviewReportCard } from "@/components/InterviewReportCard";
 import type { StoredInterviewResult } from "@/lib/types";
 import type { FinishResponse } from "@/lib/view-types";
@@ -32,31 +33,28 @@ export default function ResultPage() {
   }, []);
 
   return (
-    <main className="page-shell px-6 py-10 sm:px-8 lg:px-12">
+    <FullWidthSection className="page-shell py-[var(--space-2xl)] sm:py-[var(--space-3xl)]" contentClassName="space-y-6">
       {report ? (
         <InterviewReportCard report={report} />
       ) : result ? (
         <EvaluationCard result={result} />
       ) : (
-        <div className="glass-panel mx-auto max-w-2xl space-y-4 text-center">
-          <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">
-            No result found
-          </p>
-          <h1 className="text-2xl font-semibold text-zinc-50">
+        <div className="surface-card mx-auto max-w-2xl space-y-4 p-8 text-center">
+          <p className="section-kicker">No result found</p>
+          <h1 className="text-type-h2 text-[var(--color-text-primary)]">
             Complete an interview round to see the evaluation.
           </h1>
-          <p className="text-sm leading-7 text-zinc-400">
+          <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
             The result screen reads the latest session from local storage after the
             API evaluation finishes.
           </p>
-          <Link
-            href="/"
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-blue-500 px-5 text-sm font-medium text-white"
-          >
-            Back to setup
-          </Link>
+          <div className="pt-2">
+            <Link href="/" className="primary-btn">
+              Back to setup
+            </Link>
+          </div>
         </div>
       )}
-    </main>
+    </FullWidthSection>
   );
 }

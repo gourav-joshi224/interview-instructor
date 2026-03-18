@@ -82,6 +82,8 @@ type FirestoreDocument = {
   fields?: Record<string, FirestoreValue>;
 };
 
+type FirestoreFields = Record<string, FirestoreValue>;
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
@@ -366,6 +368,14 @@ export class StorageService {
     return value && 'stringValue' in value ? value.stringValue : '';
   }
 
+  private readMapFields(value: FirestoreValue | undefined): FirestoreFields {
+    if (!value || !('mapValue' in value)) {
+      return {};
+    }
+
+    return value.mapValue.fields ?? {};
+  }
+
   private readNumber(value: FirestoreValue | undefined) {
     if (!value || !('integerValue' in value)) {
       return 0;
@@ -399,9 +409,11 @@ export class StorageService {
           return null;
         }
 
+        const fields = item.mapValue.fields ?? {};
+
         return {
-          question: this.readString(item.mapValue.fields.question),
-          answer: this.readString(item.mapValue.fields.answer),
+          question: this.readString(fields.question),
+          answer: this.readString(fields.answer),
         };
       })
       .filter((item): item is InterviewSessionAnswer => Boolean(item?.question));
@@ -418,9 +430,11 @@ export class StorageService {
           return null;
         }
 
+        const fields = item.mapValue.fields ?? {};
+
         return {
-          skill: this.readString(item.mapValue.fields.skill),
-          score: this.readNumber(item.mapValue.fields.score),
+          skill: this.readString(fields.skill),
+          score: this.readNumber(fields.score),
         };
       })
       .filter((item): item is DynamicSkillScore => Boolean(item?.skill));
@@ -437,9 +451,11 @@ export class StorageService {
           return null;
         }
 
+        const fields = item.mapValue.fields ?? {};
+
         return {
-          title: this.readString(item.mapValue.fields.title),
-          url: this.readString(item.mapValue.fields.url),
+          title: this.readString(fields.title),
+          url: this.readString(fields.url),
         };
       })
       .filter((item): item is EvaluationResource => Boolean(item?.title && item?.url));
@@ -455,7 +471,7 @@ export class StorageService {
       };
     }
 
-    const fields = value.mapValue.fields;
+    const fields = value.mapValue.fields ?? {};
 
     return {
       architecture: this.readNumber(fields.architecture),
@@ -499,17 +515,18 @@ export class StorageService {
     }
 
     const reportValue = fields.report;
+    const reportFields = this.readMapFields(reportValue);
     const report =
-      reportValue && 'mapValue' in reportValue
+      Object.keys(reportFields).length > 0
         ? {
-            overallScore: this.readNumber(reportValue.mapValue.fields.overallScore),
-            strengths: this.readStringArray(reportValue.mapValue.fields.strengths),
-            weakAreas: this.readStringArray(reportValue.mapValue.fields.weakAreas),
-            communicationFeedback: this.readString(reportValue.mapValue.fields.communicationFeedback),
-            technicalFeedback: this.readString(reportValue.mapValue.fields.technicalFeedback),
-            improvementPlan: this.readString(reportValue.mapValue.fields.improvementPlan),
-            skillBreakdown: this.readDynamicSkillBreakdown(reportValue.mapValue.fields.skillBreakdown),
-            learningResources: this.readResources(reportValue.mapValue.fields.learningResources),
+            overallScore: this.readNumber(reportFields.overallScore),
+            strengths: this.readStringArray(reportFields.strengths),
+            weakAreas: this.readStringArray(reportFields.weakAreas),
+            communicationFeedback: this.readString(reportFields.communicationFeedback),
+            technicalFeedback: this.readString(reportFields.technicalFeedback),
+            improvementPlan: this.readString(reportFields.improvementPlan),
+            skillBreakdown: this.readDynamicSkillBreakdown(reportFields.skillBreakdown),
+            learningResources: this.readResources(reportFields.learningResources),
           }
         : null;
 

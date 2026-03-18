@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { Logo } from "@/components/Logo";
 
 type LoadingScreenProps = {
   title: string;
@@ -33,25 +34,24 @@ export function LoadingScreen({
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel flex w-full max-w-2xl flex-col items-center gap-6 px-8 py-14 text-center"
+        className="surface-card flex w-full max-w-2xl flex-col items-center gap-6 px-8 py-14 text-center"
       >
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 6, ease: "linear", repeat: Number.POSITIVE_INFINITY }}
-          className="relative h-18 w-18 rounded-full border border-white/10 bg-white/[0.03]"
+          className="relative flex h-[72px] w-[72px] items-center justify-center rounded-full border border-[rgba(65,105,67,0.14)] bg-[var(--color-surface-light)]"
         >
-          <div className="absolute inset-3 rounded-full border border-blue-400/30" />
+          <div className="absolute inset-3 rounded-full border border-[rgba(65,105,67,0.25)]" />
           <motion.div
             animate={{ scale: [1, 1.15, 1] }}
             transition={{ duration: 1.8, repeat: Number.POSITIVE_INFINITY }}
-            className="absolute inset-6 rounded-full bg-blue-400/35"
+            className="absolute inset-6 rounded-full bg-[rgba(176,236,112,0.55)]"
           />
+          <Logo mode="icon" tone="dark" ariaLabel="BackendGym loading logo" />
         </motion.div>
 
         <div className="space-y-2">
-          <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">
-            {title}
-          </p>
+          <p className="section-kicker">{title}</p>
           <div className="relative h-8 overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.p
@@ -60,16 +60,14 @@ export function LoadingScreen({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.25 }}
-                className="text-xl font-medium text-zinc-100"
+                className="text-type-h3 text-[var(--color-text-primary)]"
               >
                 {messages[activeIndex]}
               </motion.p>
             </AnimatePresence>
           </div>
           {subtitle ? (
-            <p className="mx-auto max-w-lg text-sm leading-7 text-zinc-400">
-              {subtitle}
-            </p>
+            <p className="mx-auto max-w-lg text-sm leading-7 text-[var(--color-text-secondary)]">{subtitle}</p>
           ) : null}
         </div>
 
@@ -83,7 +81,7 @@ export function LoadingScreen({
                 delay: dot * 0.18,
                 repeat: Number.POSITIVE_INFINITY,
               }}
-              className="h-2.5 w-2.5 rounded-full bg-blue-300/80"
+              className="h-2.5 w-2.5 rounded-full bg-[var(--color-accent)]"
             />
           ))}
         </div>
