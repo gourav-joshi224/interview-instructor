@@ -41,7 +41,20 @@ async function readApiError(response: Response, fallback: string) {
 
 type QuestionResponse = {
   question?: string;
+  questionId?: string;
   skill?: string | null;
+};
+
+type StartSessionResponse = {
+  sessionId?: string;
+  question?: string;
+  questionId?: string;
+};
+
+type ProgressSessionResponse = {
+  ok?: boolean;
+  question?: string;
+  questionId?: string;
 };
 
 type FinishResponse = {
@@ -68,6 +81,7 @@ export function InterviewBox() {
 
   const [sessionId, setSessionId] = useState("");
   const [question, setQuestion] = useState("");
+  const [questionId, setQuestionId] = useState("");
   const [selectedSkill, setSelectedSkill] = useState("");
   const [currentQuestionNumber, setCurrentQuestionNumber] = useState(1);
   const [answer, setAnswer] = useState("");
@@ -83,33 +97,6 @@ export function InterviewBox() {
   );
 
   const isFinalQuestion = currentQuestionNumber >= totalQuestions;
-
-  const requestQuestion = useCallback(async () => {
-    const response = await fetch("/api/question", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        topic,
-        experience,
-        difficulty,
-        mode,
-        resumeDataUrl:
-          mode === "resume" ? sessionStorage.getItem("interview-resume-data-url") : undefined,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(await readApiError(response, "Unable to generate the next interview question."));
-    }
-
-    const data = (await response.json()) as QuestionResponse;
-    return {
-      question: data.question ?? "",
-      skill: data.skill ?? "",
-    };
-  }, [difficulty, experience, mode, topic]);
 
   useEffect(() => {
     if (missingSetup) {
@@ -137,27 +124,29 @@ export function InterviewBox() {
           }),
         });
 
-        const [startResponse, firstQuestion] = followUpQuestion
-          ? await Promise.all([startPromise, Promise.resolve({ question: followUpQuestion, skill: "" }), wait(1000)])
-          : await Promise.all([startPromise, requestQuestion(), wait(1500)]);
+        const [startResponse] = await Promise.all([startPromise, wait(1500)]);
 
         if (!startResponse.ok) {
           throw new Error(await readApiError(startResponse, "Unable to start interview session."));
         }
 
-        const data = (await startResponse.json()) as { sessionId?: string };
+        const data = (await startResponse.json()) as StartSessionResponse;
 
         if (!active) {
           return;
         }
 
-        if (!data.sessionId || !firstQuestion.question) {
+        const initialQuestion = followUpQuestion || data.question || "";
+        const initialQuestionId = data.questionId ?? "";
+
+        if (!data.sessionId || !initialQuestion) {
           throw new Error("Failed to initialize interview session.");
         }
 
         setSessionId(data.sessionId);
-        setQuestion(firstQuestion.question);
-        setSelectedSkill(firstQuestion.skill);
+        setQuestion(initialQuestion);
+        setQuestionId(initialQuestionId);
+        setSelectedSkill("");
       } catch (requestError) {
         if (!active) {
           return;
@@ -185,24 +174,22 @@ export function InterviewBox() {
     experience,
     followUpQuestion,
     missingSetup,
-    mode,
-    requestQuestion,
     topic,
     totalQuestions,
   ]);
 
   const moveToNextQuestion = async () => {
-    if (!answer.trim() || !question || !sessionId || isFinalQuestion) {
+    if (!answer.trim() || !question || !questionId || !sessionId || isFinalQuestion) {
       setError("Answer the current question before moving ahead.");
       return;
     }
 
-    const nextAnswers = [...answers, { question, answer: answer.trim() }];
+    const nextAnswers = [...answers, { questionId, question, answer: answer.trim() }];
     setLoadingNext(true);
     setError("");
 
     try {
-      const [progressResponse, nextQuestion] = await Promise.all([
+      const [progressResponse] = await Promise.all([
         fetch("/api/session/progress", {
           method: "POST",
           headers: {
@@ -217,7 +204,6 @@ export function InterviewBox() {
             answers: nextAnswers,
           }),
         }),
-        requestQuestion(),
         wait(1200),
       ]);
 
@@ -225,14 +211,17 @@ export function InterviewBox() {
         throw new Error(await readApiError(progressResponse, "Unable to save current interview progress."));
       }
 
-      if (!nextQuestion.question) {
+      const progressData = (await progressResponse.json()) as ProgressSessionResponse;
+
+      if (!progressData.question || !progressData.questionId) {
         throw new Error("Could not generate the next interview question.");
       }
 
       setAnswers(nextAnswers);
       setCurrentQuestionNumber((value) => value + 1);
-      setQuestion(nextQuestion.question);
-      setSelectedSkill(nextQuestion.skill);
+      setQuestion(progressData.question);
+      setQuestionId(progressData.questionId);
+      setSelectedSkill("");
       setAnswer("");
     } catch (requestError) {
       const message =
@@ -246,12 +235,12 @@ export function InterviewBox() {
   };
 
   const finishInterview = async () => {
-    if (!answer.trim() || !question || !sessionId) {
+    if (!answer.trim() || !question || !questionId || !sessionId) {
       setError("Answer the final question before finishing the interview.");
       return;
     }
 
-    const finalAnswers = [...answers, { question, answer: answer.trim() }];
+    const finalAnswers = [...answers, { questionId, question, answer: answer.trim() }];
     setFinishing(true);
     setError("");
 

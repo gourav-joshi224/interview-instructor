@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import envConfig from './config/env.config';
 import { AiModule } from './modules/ai/ai.module';
@@ -7,7 +8,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { InterviewModule } from './modules/interview/interview.module';
 import { SessionModule } from './modules/session/session.module';
 import { StorageModule } from './modules/storage/storage.module';
-import { ThrottlerPlaceholderModule } from './modules/throttler-placeholder/throttler-placeholder.module';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 
 @Module({
   imports: [
@@ -21,7 +22,12 @@ import { ThrottlerPlaceholderModule } from './modules/throttler-placeholder/thro
     InterviewModule,
     SessionModule,
     DashboardModule,
-    ThrottlerPlaceholderModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
   ],
 })
 export class AppModule {}
