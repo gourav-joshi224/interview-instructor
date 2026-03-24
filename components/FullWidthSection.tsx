@@ -4,6 +4,7 @@ type FullWidthSectionProps = HTMLAttributes<HTMLElement> & {
   children: ReactNode;
   surface?: "none" | "light" | "gradient" | "dark";
   contentClassName?: string;
+  fullBleed?: boolean;
 };
 
 export function FullWidthSection({
@@ -11,6 +12,7 @@ export function FullWidthSection({
   className = "",
   contentClassName = "",
   surface = "none",
+  fullBleed = false,
   ...props
 }: FullWidthSectionProps) {
   const surfaceClass =
@@ -24,7 +26,11 @@ export function FullWidthSection({
 
   return (
     <section className={`w-full ${surfaceClass} ${className}`.trim()} {...props}>
-      <div className={`mx-auto w-full max-w-7xl px-[var(--space-lg)] ${contentClassName}`.trim()}>
+      <div
+        className={`${
+          fullBleed ? "full-bleed-content" : "mx-auto w-full max-w-7xl px-[var(--space-lg)]"
+        } ${contentClassName}`.trim()}
+      >
         {children}
       </div>
     </section>

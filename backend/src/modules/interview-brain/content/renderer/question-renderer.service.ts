@@ -66,13 +66,9 @@ export class QuestionRendererService {
     hook: ScenarioHook,
     constraints: ConstraintTemplate[],
   ): string {
-    const conceptTitles = family.primaryConcepts
-      .map((conceptId) => pack.concepts.find((c) => c.id === conceptId)?.title)
-      .filter((title): title is string => Boolean(title));
-
-    const scenarioLine = this.buildScenarioLine(hook);
-    const primaryAsk = this.buildPrimaryAsk(family, hook, conceptTitles);
-    const constraintLine = this.buildConstraintLine(constraints);
+    const scenarioLine = family.difficulty === 'warm_up' ? '' : this.buildScenarioLine(hook);
+    const primaryAsk = this.buildPrimaryAsk(family, hook);
+    const constraintLine = family.difficulty === 'warm_up' ? '' : this.buildConstraintLine(constraints);
 
     const raw = [scenarioLine, primaryAsk, constraintLine].filter(Boolean).join(' ');
 
@@ -80,33 +76,23 @@ export class QuestionRendererService {
   }
 
   private buildScenarioLine(hook: ScenarioHook): string {
-    const core = [hook.backdrop, hook.trigger].filter(Boolean).join(' ').trim();
-    return core ? `${hook.title}: ${core}` : hook.title;
+    return [hook.backdrop, hook.trigger].filter(Boolean).join(' ').trim();
   }
 
-  private buildPrimaryAsk(family: QuestionFamily, hook: ScenarioHook, conceptTitles: string[]): string {
-    const concept = conceptTitles[0] ?? family.primaryConcepts?.[0] ?? 'the concept';
+  private buildPrimaryAsk(family: QuestionFamily, hook: ScenarioHook): string {
+    const skeletons = family.phrasingSkeleton
+      .split(' / ')
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-    switch (family.key) {
-      case 'javascript.event_loop':
-        return `How would event loop and microtask ordering guide your fix here?`;
-      case 'javascript.promises_async':
-        return `How would you sequence the async work and handle errors without starving rendering?`;
-      case 'javascript.closures':
-        return `Why is state sticking around and how would you release the captured references?`;
-      case 'javascript.scope_chain':
-        return `Trace which identifiers resolve where in this case and explain why.`;
-      case 'javascript.hoisting':
-        return `Walk through the hoisting/TDZ issue you see and show the safer rewrite.`;
-      case 'javascript.prototype_chain':
-        return `Trace the prototype chain involved here and propose a safer creation pattern.`;
-      case 'javascript.this_binding':
-        return `How would you fix the this-binding bug and prevent it in similar code?`;
-      case 'javascript.memory_leaks':
-        return `How would you surface and stop the leak (detached DOM, listeners, closures)?`;
-      default:
-        return `How would you apply ${concept} to resolve this?`;
-    }
+    if (skeletons.length <= 1) return skeletons[0] ?? family.stem;
+    if (family.difficulty !== 'warm_up') return skeletons[0];
+
+    const index = Math.abs(
+      hook.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0),
+    ) % skeletons.length;
+
+    return skeletons[index];
   }
 
   private buildConstraintLine(constraints: ConstraintTemplate[]): string {

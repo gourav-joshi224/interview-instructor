@@ -20,9 +20,23 @@ body {
   color: var(--color-text-primary);
   font-family: "Instrument Sans", "SF Pro Display", -apple-system, system-ui, sans-serif;
   background-image:
-    radial-gradient(circle at 12% 18%, rgba(176, 236, 112, 0.18), transparent 28%),
-    radial-gradient(circle at 90% 2%, rgba(65, 105, 67, 0.14), transparent 24%),
-    radial-gradient(circle at 88% 84%, rgba(20, 69, 22, 0.06), transparent 20%);
+    radial-gradient(circle at 8% 10%, rgba(176, 236, 112, 0.18), transparent 24%),
+    radial-gradient(circle at 94% 8%, rgba(65, 105, 67, 0.14), transparent 22%),
+    linear-gradient(180deg, #f8fbf6 0%, #eef5ee 45%, #f6faf4 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(20, 69, 22, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 69, 22, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.2), transparent 92%);
+  opacity: 0.5;
+  z-index: -1;
 }
 
 a {
@@ -55,8 +69,8 @@ select {
 .page-shell {
   min-height: 100dvh;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(215, 226, 214, 0.7) 100%),
-    radial-gradient(circle at top right, rgba(176, 236, 112, 0.2), transparent 30%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(229, 238, 228, 0.72) 100%),
+    radial-gradient(circle at top right, rgba(176, 236, 112, 0.16), transparent 28%);
 }
 
 .glass-panel,
@@ -75,45 +89,73 @@ select {
 .surface-card {
   border-radius: var(--radius-lg);
   border: 1px solid rgba(65, 105, 67, 0.16);
-  background: var(--gradient-surface);
-  box-shadow: var(--shadow-primary);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(233, 239, 232, 0.92) 100%);
+  box-shadow: 0 18px 40px rgba(20, 69, 22, 0.08);
 }
 
 .soft-card {
   border-radius: var(--radius-md);
-  background: var(--color-surface-light);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(65, 105, 67, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 10px 30px rgba(20, 69, 22, 0.04);
+}
+
+.dashboard-tile {
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+  backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.editor-panel {
+  border-radius: 28px;
+  border: 1px solid rgba(65, 105, 67, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 245, 239, 0.94) 100%);
+  box-shadow:
+    0 20px 44px rgba(20, 69, 22, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .primary-btn {
   align-items: center;
   border-radius: var(--radius-pill);
   border: 0;
-  background: var(--color-accent);
+  background: linear-gradient(135deg, #d8ff9a 0%, var(--color-accent) 55%, #8dd93f 100%);
   color: var(--color-primary-dark);
   cursor: pointer;
   display: inline-flex;
   font-size: 14px;
   font-weight: 600;
   gap: var(--space-sm);
-  height: 48px;
+  height: 52px;
   justify-content: center;
   line-height: 1;
-  padding: 0 var(--space-xl);
+  padding: 0 calc(var(--space-xl) + 2px);
   transition:
     transform var(--motion-fast) ease-out,
     box-shadow var(--motion-fast) ease-out,
-    opacity var(--motion-fast) ease-out;
-  box-shadow: 0 4px 16px rgba(176, 236, 112, 0.32);
+    opacity var(--motion-fast) ease-out,
+    filter var(--motion-fast) ease-out;
+  box-shadow:
+    0 14px 30px rgba(144, 210, 62, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .primary-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(176, 236, 112, 0.36);
+  transform: translateY(-2px);
+  box-shadow:
+    0 18px 34px rgba(144, 210, 62, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  filter: saturate(1.05);
 }
 
 .primary-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .primary-btn:disabled {
@@ -124,23 +166,28 @@ select {
 
 .secondary-btn {
   align-items: center;
-  background: transparent;
-  border: 1.5px solid var(--color-primary);
-  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1.5px solid rgba(65, 105, 67, 0.2);
+  border-radius: 9999px;
   color: var(--color-primary);
   cursor: pointer;
   display: inline-flex;
   font-size: 14px;
   font-weight: 600;
   gap: var(--space-sm);
-  height: 44px;
+  height: 48px;
   justify-content: center;
   padding: 0 var(--space-xl);
-  transition: background var(--motion-fast) ease-out;
+  transition:
+    background var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out,
+    transform var(--motion-fast) ease-out;
 }
 
 .secondary-btn:hover {
-  background: rgba(65, 105, 67, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(65, 105, 67, 0.32);
+  transform: translateY(-1px);
 }
 
 .ghost-link {
@@ -153,24 +200,28 @@ select {
 
 .interactive-field {
   width: 100%;
-  background: var(--color-surface-light);
-  border: 2px solid transparent;
-  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1.5px solid rgba(65, 105, 67, 0.12);
+  border-radius: 18px;
   color: var(--color-text-primary);
   font-size: 16px;
-  height: 48px;
+  min-height: 52px;
   padding: 0 var(--space-base);
   transition:
     box-shadow var(--motion-normal) ease-out,
     border-color var(--motion-normal) ease-out,
-    background var(--motion-normal) ease-out;
+    background var(--motion-normal) ease-out,
+    transform var(--motion-fast) ease-out;
 }
 
 .interactive-field:focus {
   outline: none;
   border-color: var(--color-accent);
   background: var(--color-background);
-  box-shadow: 0 0 0 4px rgba(176, 236, 112, 0.15);
+  box-shadow:
+    0 0 0 4px rgba(176, 236, 112, 0.16),
+    0 12px 28px rgba(20, 69, 22, 0.08);
+  transform: translateY(-1px);
 }
 
 .interactive-field::file-selector-button {
@@ -200,12 +251,25 @@ select {
 
 .hero-wrap,
 .hero-panel {
-  border-radius: 36px;
+  border-radius: 32px;
   background: var(--gradient-hero);
   color: var(--color-text-on-dark);
   overflow: hidden;
   position: relative;
   box-shadow: var(--shadow-hero);
+}
+
+.full-app-shell {
+  width: 100%;
+  padding-left: clamp(14px, 2vw, 28px);
+  padding-right: clamp(14px, 2vw, 28px);
+}
+
+.full-bleed-content {
+  width: 100%;
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .hero-wrap::before,

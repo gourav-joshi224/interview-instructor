@@ -116,7 +116,7 @@ export class StorageService {
   async saveInterview(input: SaveInterviewInput): Promise<string | null> {
     const config = this.getFirebaseConfig();
 
-    const response = await fetch(this.collectionUrl('interviews', config.apiKey, config.projectId), {
+    const response = await this.firestoreFetch(this.collectionUrl('interviews', config.apiKey, config.projectId), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ export class StorageService {
   async getRecentInterviews(limit = 20): Promise<Array<Record<string, unknown>>> {
     const config = this.getFirebaseConfig();
 
-    const response = await fetch(this.runQueryUrl(config.apiKey, config.projectId), {
+    const response = await this.firestoreFetch(this.runQueryUrl(config.apiKey, config.projectId), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -176,7 +176,7 @@ export class StorageService {
       updateTransforms.push(this.serverTimestampTransform('finishedAt'));
     }
 
-    const response = await fetch(this.commitUrl(config.apiKey, config.projectId), {
+    const response = await this.firestoreFetch(this.commitUrl(config.apiKey, config.projectId), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -222,7 +222,7 @@ export class StorageService {
       updateTransforms.push(this.serverTimestampTransform('finishedAt'));
     }
 
-    const response = await fetch(this.commitUrl(config.apiKey, config.projectId), {
+    const response = await this.firestoreFetch(this.commitUrl(config.apiKey, config.projectId), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -251,7 +251,7 @@ export class StorageService {
   async getInterviewSession(sessionId: string): Promise<Record<string, unknown> | null> {
     const config = this.getFirebaseConfig();
 
-    const response = await fetch(
+    const response = await this.firestoreFetch(
       this.documentUrl(`interviewSessions/${sessionId}`, config.apiKey, config.projectId),
       {
         method: 'GET',
@@ -281,7 +281,7 @@ export class StorageService {
 
     if (!apiKey || !projectId || !apiKeyLooksValid || !projectIdLooksValid || valuesLookSwapped) {
       throw new Error(
-        'STORAGE_INIT_FAILED: Firebase config missing. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY.',
+        'STORAGE_INIT_FAILED: Firebase config missing or invalid. Set FIREBASE_API_KEY and FIREBASE_PROJECT_ID.',
       );
     }
 
@@ -439,6 +439,25 @@ export class StorageService {
 
   private commitUrl(apiKey: string, projectId: string) {
     return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit?key=${apiKey}`;
+  }
+
+  private async firestoreFetch(input: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      const errorWithCause = error as Error & { cause?: unknown };
+      const reason = error instanceof Error ? errorWithCause.cause ?? error.message : 'unknown transport error';
+      const normalizedReason =
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === 'string'
+            ? reason
+            : JSON.stringify(reason);
+
+      throw new Error(
+        `STORAGE_REQUEST_FAILED: Unable to reach Firestore for project "${this.firebaseConfig.projectId}". ${normalizedReason}`,
+      );
+    }
   }
 
   private serverTimestampTransform(fieldPath: string) {

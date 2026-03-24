@@ -103,6 +103,7 @@ export interface QuestionEvaluationResult {
   evidence: EvidenceExtractionResult;
   scoreBreakdown: ProfileScoreBreakdown;
   feedback: FeedbackPayload;
+  missedCheckpoints?: string[];
 }
 
 export interface EvaluationResultParts {

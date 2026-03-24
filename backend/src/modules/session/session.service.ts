@@ -113,7 +113,7 @@ export class SessionService {
       experience,
       difficulty,
       totalQuestions,
-      answers: input.answers,
+      answers: alignedAnswers,
       status: 'completed',
       report: evaluation.report,
       questionResults: evaluation.questionResults,
@@ -137,10 +137,7 @@ export class SessionService {
         difficulty: input.difficulty,
         experience: input.experience,
         totalQuestions: input.totalQuestions,
-        selectionOptions: {
-          // TODO: replace with server-side history once userId auth is active
-          excludeQuestionTexts: input.recentQuestionIds ?? [],
-        },
+        excludeQuestionIds: input.recentQuestionIds ?? [],
       });
 
       const questionPlan = questions.map((instance) => ({

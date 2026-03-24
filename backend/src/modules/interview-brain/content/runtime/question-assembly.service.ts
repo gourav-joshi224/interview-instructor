@@ -10,6 +10,7 @@ interface AssemblyInput {
   difficulty: string;
   experience: string;
   totalQuestions: number;
+  excludeQuestionIds?: string[];
   selectionOptions?: QuestionSelectionOptions;
 }
 
@@ -19,6 +20,8 @@ export interface AssemblyResult {
 }
 
 const MAX_PER_ARCHETYPE = parseInt(process.env.MAX_PER_ARCHETYPE ?? '3', 10);
+const WARM_UP_PRODUCTION_INCIDENT_PATTERN =
+  /\b(out-of-memory|oom|pods|heap|incident|outage|production issue|p99|latency spike|kills|crashes)\b/i;
 
 @Injectable()
 export class QuestionAssemblyService {
@@ -30,6 +33,7 @@ export class QuestionAssemblyService {
   ) {}
 
   assemble(input: AssemblyInput): AssemblyResult {
+    const excludeSet = new Set(input.excludeQuestionIds ?? []);
     const pack = getTopicPack(input.topicId);
     const planned: PlannedQuestion[] = planQuestionsFromPack(
       pack,
@@ -37,6 +41,7 @@ export class QuestionAssemblyService {
       Number.isNaN(MAX_PER_ARCHETYPE) ? 3 : MAX_PER_ARCHETYPE,
       {
         ...input.selectionOptions,
+        excludeQuestionIds: input.excludeQuestionIds,
         difficulty: input.difficulty,
       },
     );
@@ -67,7 +72,7 @@ export class QuestionAssemblyService {
 
       if (!validation.valid) {
         const retry = this.tryAlternateHook(pack, item.family, usedHookIds);
-        if (retry) {
+        if (retry && !excludeSet.has(`${item.family.key}::${retry.id}`)) {
           const reRendered = this.renderer.render({
             topicId: input.topicId,
             familyKey: item.family.key,
@@ -101,7 +106,7 @@ export class QuestionAssemblyService {
         }
 
         const alternateFamily = this.tryAlternateFamily(pack, item.hook, usedFamilyKeys);
-        if (alternateFamily) {
+        if (alternateFamily && !excludeSet.has(`${alternateFamily.key}::${item.hook.id}`)) {
           const altConstraints = (alternateFamily.defaultConstraints ?? [])
             .map((id) => pack.constraintTemplates.find((c) => c.id === id))
             .filter((c): c is ConstraintTemplate => Boolean(c));
@@ -165,6 +170,7 @@ export class QuestionAssemblyService {
           usedHookIds,
           usedNumericScales,
           instances,
+          excludeSet,
         },
       );
     }
@@ -193,67 +199,71 @@ export class QuestionAssemblyService {
       usedHookIds: string[];
       usedNumericScales: string[];
       instances: GeneratedQuestionInstance[];
+      excludeSet: Set<string>;
     },
   ) {
     if (deficit <= 0) return;
 
     const targetCount = state.instances.length + deficit;
     const difficultyKey = normalizeDifficulty(difficulty);
-    const preferredFamilies = difficultyKey
-      ? pack.questionFamilies.filter((family) => !family.difficulty || family.difficulty === difficultyKey)
-      : pack.questionFamilies;
-    const families = this.shuffle(preferredFamilies.length > 0 ? preferredFamilies : pack.questionFamilies);
     const hooks = this.shuffle(pack.scenarioHooks);
 
-    if (hooks.length === 0 || families.length === 0) return;
+    if (hooks.length === 0 || pack.questionFamilies.length === 0) return;
 
     const constraintsById = new Map(pack.constraintTemplates.map((c) => [c.id, c]));
+    const backfillPools = this.buildBackfillFamilyPools(pack.questionFamilies, difficultyKey);
 
-    for (const family of families) {
-      if (state.instances.length >= targetCount) {
-        break;
+    for (const families of backfillPools) {
+      for (const family of families) {
+        if (state.instances.length >= targetCount) {
+          break;
+        }
+
+        const hook = this.pickCompatibleHook(hooks, family, state.usedHookIds, difficultyKey, state.excludeSet);
+        if (!hook) {
+          continue;
+        }
+
+        const constraints = (family.defaultConstraints ?? [])
+          .map((id) => constraintsById.get(id))
+          .filter((c): c is ConstraintTemplate => Boolean(c));
+
+        const rendered = this.renderer.render({
+          topicId,
+          familyKey: family.key,
+          hookId: hook.id,
+          constraintIds: constraints.map((c) => c.id),
+        });
+
+        const validation = this.validator.validate(rendered, {
+          askedQuestions: state.usedQuestions,
+          usedFamilyKeys: state.usedFamilyKeys,
+          usedSkeletons: state.usedSkeletons,
+          usedHookIds: state.usedHookIds,
+          availableHookCount: pack.scenarioHooks.length,
+          usedNumericScales: state.usedNumericScales,
+        });
+
+        if (!this.isBackfillValid(validation.reasons)) {
+          continue;
+        }
+
+        state.instances.push(this.toInstance(rendered, family, constraints, hook));
+        this.track(
+          rendered,
+          state.usedQuestions,
+          state.usedFamilyKeys,
+          state.usedSkeletons,
+          state.usedHookIds,
+          state.usedNumericScales,
+          family.key,
+          hook.id,
+        );
+
+        if (state.instances.length >= targetCount) {
+          break;
+        }
       }
-
-      const hook = this.pickCompatibleHook(hooks, family, state.usedHookIds);
-      if (!hook) {
-        continue;
-      }
-
-      const constraints = (family.defaultConstraints ?? [])
-        .map((id) => constraintsById.get(id))
-        .filter((c): c is ConstraintTemplate => Boolean(c));
-
-      const rendered = this.renderer.render({
-        topicId,
-        familyKey: family.key,
-        hookId: hook.id,
-        constraintIds: constraints.map((c) => c.id),
-      });
-
-      const validation = this.validator.validate(rendered, {
-        askedQuestions: state.usedQuestions,
-        usedFamilyKeys: state.usedFamilyKeys,
-        usedSkeletons: state.usedSkeletons,
-        usedHookIds: state.usedHookIds,
-        availableHookCount: pack.scenarioHooks.length,
-        usedNumericScales: state.usedNumericScales,
-      });
-
-      if (!this.isBackfillValid(validation.reasons)) {
-        continue;
-      }
-
-      state.instances.push(this.toInstance(rendered, family, constraints, hook));
-      this.track(
-        rendered,
-        state.usedQuestions,
-        state.usedFamilyKeys,
-        state.usedSkeletons,
-        state.usedHookIds,
-        state.usedNumericScales,
-        family.key,
-        hook.id,
-      );
 
       if (state.instances.length >= targetCount) {
         break;
@@ -262,8 +272,54 @@ export class QuestionAssemblyService {
   }
 
   private isBackfillValid(reasons: string[]): boolean {
-    if (reasons.length === 0) return true;
-    return reasons.every((reason) => reason === 'family-key-reused');
+    return reasons.length === 0;
+  }
+
+  private buildBackfillFamilyPools(
+    families: QuestionFamily[],
+    difficulty: QuestionFamily['difficulty'] | null,
+  ): QuestionFamily[][] {
+    if (!difficulty) {
+      return [this.shuffle(families)];
+    }
+
+    const exactFamilies = families.filter((family) => !family.difficulty || family.difficulty === difficulty);
+    const fallbackDifficulties = this.getAdjacentBackfillDifficulties(difficulty);
+    const fallbackFamilies = families.filter(
+      (family) =>
+        Boolean(family.difficulty) &&
+        fallbackDifficulties.includes(family.difficulty) &&
+        !exactFamilies.some((candidate) => candidate.key === family.key),
+    );
+
+    const pools: QuestionFamily[][] = [];
+
+    if (exactFamilies.length > 0) {
+      pools.push(this.shuffle(exactFamilies));
+    }
+
+    if (fallbackFamilies.length > 0) {
+      pools.push(this.shuffle(fallbackFamilies));
+    }
+
+    return pools.length > 0 ? pools : [this.shuffle(families)];
+  }
+
+  private getAdjacentBackfillDifficulties(
+    difficulty: QuestionFamily['difficulty'],
+  ): QuestionFamily['difficulty'][] {
+    switch (difficulty) {
+      case 'warm_up':
+        return ['medium'];
+      case 'medium':
+        return ['warm_up', 'hard'];
+      case 'hard':
+        return ['medium', 'epic'];
+      case 'epic':
+        return ['hard'];
+      default:
+        return [];
+    }
   }
 
   private shuffle<T>(items: T[]): T[] {
@@ -291,16 +347,34 @@ export class QuestionAssemblyService {
     hooks: ScenarioHook[],
     family: QuestionFamily,
     usedHookIds: string[],
+    difficulty?: QuestionFamily['difficulty'] | null,
+    excludeSet: Set<string> = new Set(),
   ): ScenarioHook | undefined {
-    const compatible = hooks.find(
-      (hook) => !usedHookIds.includes(hook.id) && this.isHookCompatibleWithFamily(hook, family),
+    const excludeProductionIncidentHooks =
+      difficulty === 'warm_up' || family.difficulty === 'warm_up';
+    const compatible = hooks.filter(
+      (hook) =>
+        !usedHookIds.includes(hook.id) &&
+        !excludeSet.has(`${family.key}::${hook.id}`) &&
+        this.isHookCompatibleWithFamily(hook, family),
+    );
+    const warmUpSafeCompatible =
+      excludeProductionIncidentHooks
+        ? compatible.filter(
+            (hook) =>
+              !WARM_UP_PRODUCTION_INCIDENT_PATTERN.test(`${hook.backdrop ?? ''} ${hook.trigger ?? ''}`),
+          )
+        : compatible;
+
+    const fallbackHooks = hooks.filter(
+      (hook) =>
+        !usedHookIds.includes(hook.id) &&
+        !excludeSet.has(`${family.key}::${hook.id}`) &&
+        (!excludeProductionIncidentHooks ||
+          !WARM_UP_PRODUCTION_INCIDENT_PATTERN.test(`${hook.backdrop ?? ''} ${hook.trigger ?? ''}`)),
     );
 
-    if (compatible) {
-      return compatible;
-    }
-
-    return hooks.find((hook) => !usedHookIds.includes(hook.id));
+    return warmUpSafeCompatible[0] ?? compatible[0] ?? fallbackHooks[0];
   }
 
   private isHookCompatibleWithFamily(hook: ScenarioHook, family: QuestionFamily): boolean {

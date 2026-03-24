@@ -14,6 +14,7 @@ export function shuffleArray<T>(arr: T[]): T[] {
 export interface QuestionSelectionOptions {
   excludeFamilyKeys?: string[];
   excludeHookIds?: string[];
+  excludeQuestionIds?: string[];
   excludeQuestionTexts?: string[];
   difficulty?: string;
 }
@@ -31,12 +32,16 @@ export interface PlannedQuestion {
   constraints: ConstraintTemplate[];
 }
 
+const WARM_UP_PRODUCTION_INCIDENT_PATTERN =
+  /\b(out-of-memory|oom|pods|heap|incident|outage|production issue|p99|latency spike|kills|crashes)\b/i;
+
 export function planQuestionsFromPack(
   pack: TopicPack,
   total: number,
   maxPerArchetype = 3,
   options?: QuestionSelectionOptions,
 ): PlannedQuestion[] {
+  const excludeQuestionIds = new Set(options?.excludeQuestionIds ?? []);
   const state: SelectionState = {
     usedFamilies: new Set(),
     archetypeCounts: new Map(),
@@ -80,7 +85,7 @@ export function planQuestionsFromPack(
     const family = pickNextFamily(activeFamilies, state);
     if (!family) break;
 
-    const hook = pickCompatibleHook(hooks, family, usedHookIds);
+    const hook = pickCompatibleHook(hooks, family, usedHookIds, difficultyKey, excludeQuestionIds);
     if (!hook) break;
     usedHookIds.add(hook.id);
 
@@ -98,15 +103,34 @@ function pickCompatibleHook(
   hooks: ScenarioHook[],
   family: QuestionFamily,
   usedHookIds: Set<string>,
+  difficulty?: QuestionFamily['difficulty'] | null,
+  excludeQuestionIds: Set<string> = new Set(),
 ): ScenarioHook | null {
+  const excludeProductionIncidentHooks =
+    difficulty === 'warm_up' || family.difficulty === 'warm_up';
   const compatible = hooks.filter(
     (hook) =>
       !usedHookIds.has(hook.id) &&
+      !excludeQuestionIds.has(`${family.key}::${hook.id}`) &&
       (!hook.compatibleFamilies?.length || hook.compatibleFamilies.includes(family.key)),
+  );
+  const warmUpSafeCompatible =
+    excludeProductionIncidentHooks
+      ? compatible.filter(
+          (hook) =>
+            !WARM_UP_PRODUCTION_INCIDENT_PATTERN.test(`${hook.backdrop ?? ''} ${hook.trigger ?? ''}`),
+        )
+      : compatible;
+  const fallbackHooks = hooks.filter(
+    (hook) =>
+      !usedHookIds.has(hook.id) &&
+      !excludeQuestionIds.has(`${family.key}::${hook.id}`) &&
+      (!excludeProductionIncidentHooks ||
+        !WARM_UP_PRODUCTION_INCIDENT_PATTERN.test(`${hook.backdrop ?? ''} ${hook.trigger ?? ''}`)),
   );
 
   // Fallback prevents empty sessions when hook tags are sparse.
-  const candidates = compatible.length > 0 ? compatible : hooks.filter((hook) => !usedHookIds.has(hook.id));
+  const candidates = warmUpSafeCompatible.length > 0 ? warmUpSafeCompatible : fallbackHooks;
 
   return candidates[0] ?? null;
 }

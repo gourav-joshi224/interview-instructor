@@ -6,8 +6,12 @@ import { Logo } from "@/components/Logo";
 
 export function HeroFullScreen() {
   return (
-    <FullWidthSection className="overflow-hidden pt-2" contentClassName="pb-[var(--space-3xl)]">
-      <div className="hero-panel relative isolate min-h-[calc(100dvh-120px)] overflow-hidden rounded-[2rem] px-6 py-10 sm:px-8 lg:px-10 lg:py-12">
+    <FullWidthSection
+      className="overflow-hidden pt-1"
+      contentClassName="full-app-shell pb-4"
+      fullBleed
+    >
+      <div className="hero-panel relative isolate min-h-[calc(100dvh-94px)] overflow-hidden rounded-[2rem] px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
         <div className="hero-grain" aria-hidden="true" />
         <ContrastOverlay className="rounded-[2rem]" />
         <div
@@ -19,7 +23,7 @@ export function HeroFullScreen() {
           </div>
         </div>
 
-        <div className="relative z-10 flex min-h-[72dvh] flex-col justify-between gap-10 lg:flex-row lg:items-center">
+        <div className="relative z-10 flex min-h-[78dvh] flex-col justify-between gap-10 lg:flex-row lg:items-center">
           <div className="max-w-3xl space-y-8">
             <div className="inline-flex items-center gap-3 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72 backdrop-blur-md">
               <Logo mode="icon" tone="light" />

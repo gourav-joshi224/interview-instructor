@@ -165,8 +165,39 @@ test('Session schema has required fields on create', async () => {
 test('Mock fallback is gone', () => {
   assert.throws(
     () => new StorageService(createConfigService({ apiKey: '', projectId: '' })),
-    /STORAGE_INIT_FAILED: Firebase config missing/,
+    /STORAGE_INIT_FAILED: Firebase config missing or invalid/,
   );
+});
+
+test('Firestore transport failures are wrapped with context', async () => {
+  const originalFetch = global.fetch;
+  const networkError = new TypeError('fetch failed') as TypeError & { cause?: Error };
+  networkError.cause = new Error('getaddrinfo ENOTFOUND firestore.googleapis.com');
+
+  (global as any).fetch = async () => {
+    throw networkError;
+  };
+
+  try {
+    const storage = new StorageService(createConfigService());
+
+    await assert.rejects(
+      () =>
+        storage.createInterviewSession({
+          topic: 'System Design',
+          experience: 'mid',
+          difficulty: 'medium',
+          totalQuestions: 2,
+          answers: [],
+          questionPlan: samplePlan,
+          status: 'in_progress',
+          report: null,
+        }),
+      /STORAGE_REQUEST_FAILED: Unable to reach Firestore for project "interview-gym". getaddrinfo ENOTFOUND firestore\.googleapis\.com/,
+    );
+  } finally {
+    (global as any).fetch = originalFetch;
+  }
 });
 
 test('Answer matched by questionId not index', async () => {

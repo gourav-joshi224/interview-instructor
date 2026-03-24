@@ -91,6 +91,7 @@ export const cachingPack: TopicPack = {
       title: 'Traffic spike reduces hit rate',
       backdrop: 'Marketing campaign doubles traffic.',
       trigger: 'Hit rate drops from 85% to 40% in 10 minutes.',
+      compatibleFamilies: ['cache-layer-plan', 'cache-stampede-guard', 'cache-warmup', 'cache-stampede'],
       relatedConcepts: ['cache-stampede', 'cache-population'],
     },
     {
@@ -99,6 +100,7 @@ export const cachingPack: TopicPack = {
       title: 'User sees stale profile',
       backdrop: 'Profile edits take minutes to appear.',
       trigger: 'Write-through cache updates compete with heavy reads.',
+      compatibleFamilies: ['cache-consistency-plan', 'cache-invalidation', 'cache-consistency'],
       relatedConcepts: ['cache-consistency', 'cache-invalidation'],
     },
     {
@@ -107,6 +109,7 @@ export const cachingPack: TopicPack = {
       title: 'Single key dominates traffic',
       backdrop: 'A trending product detail page drives 70% of requests.',
       trigger: 'Redis CPU spikes and tail latencies rise.',
+      compatibleFamilies: ['cache-hotspot-strategy', 'cache-stampede', 'cache-eviction'],
       relatedConcepts: ['cache-hot-keys', 'cache-resilience'],
     },
     {
@@ -115,6 +118,7 @@ export const cachingPack: TopicPack = {
       title: 'Cache node eviction',
       backdrop: 'A cache shard is evicted after a deployment.',
       trigger: 'Cold cache leads to cascading DB load.',
+      compatibleFamilies: ['cache-stampede-guard', 'cache-warmup', 'cache-monitoring'],
       relatedConcepts: ['cache-resilience', 'cache-population'],
     },
     {
@@ -123,6 +127,7 @@ export const cachingPack: TopicPack = {
       title: 'Payload compression choice',
       backdrop: 'Bandwidth costs growing; cache fill takes longer.',
       trigger: 'Considering compressing cached payloads.',
+      compatibleFamilies: ['cache-layer-plan'],
       relatedConcepts: ['cache-serialization'],
     },
     {
@@ -131,6 +136,7 @@ export const cachingPack: TopicPack = {
        title: 'Product launch traffic spike',
        backdrop: 'Brand-new feature launches globally with cold caches.',
        trigger: 'DB write load and cache miss rate surge at launch hour.',
+       compatibleFamilies: ['cache-layer-plan', 'cache-stampede-guard', 'cache-warmup', 'cache-stampede'],
        relatedConcepts: ['cache-population', 'cache-stampede'],
      },
     {
@@ -139,6 +145,7 @@ export const cachingPack: TopicPack = {
        title: 'Stale profile incident',
        backdrop: 'Users complain that profile changes take hours to show.',
        trigger: 'Invalidation events drop during a deploy window.',
+       compatibleFamilies: ['cache-consistency-plan', 'cache-invalidation', 'cache-consistency'],
        relatedConcepts: ['cache-invalidation', 'cache-consistency'],
      },
     {
@@ -147,6 +154,7 @@ export const cachingPack: TopicPack = {
        title: 'Memory pressure on cache cluster',
        backdrop: 'Evictions spike during peak traffic as node memory fills.',
        trigger: 'Hot keys crowd out long-tail items, increasing misses.',
+       compatibleFamilies: ['cache-hotspot-strategy', 'cache-eviction', 'cache-monitoring'],
        relatedConcepts: ['cache-eviction-policies', 'cache-hot-keys'],
      },
   ],
@@ -252,7 +260,7 @@ export const cachingPack: TopicPack = {
       primaryConcepts: ['cache-layering', 'cache-invalidation'],
       supportingConcepts: ['cache-serialization'],
       defaultConstraints: ['cache-slo-30ms'],
-      defaultRubricId: 'cache-performance-rubric',
+      defaultRubricId: 'cache-layer-plan-rubric',
       phrasingSkeleton: 'Describe a layered caching approach and invalidation story.',
     },
     {
@@ -263,7 +271,7 @@ export const cachingPack: TopicPack = {
       framing: 'Request coalescing, jitter, and stale-while-revalidate plan.',
       primaryConcepts: ['cache-stampede', 'cache-resilience'],
       defaultConstraints: ['cache-fail-open'],
-      defaultRubricId: 'cache-reliability-rubric',
+      defaultRubricId: 'cache-stampede-guard-rubric',
       phrasingSkeleton: 'Guard against cache stampedes with a concrete plan.',
     },
     {
@@ -274,7 +282,7 @@ export const cachingPack: TopicPack = {
       framing: 'Sharding, batching, or local caches for skew.',
       primaryConcepts: ['cache-hot-keys', 'cache-eviction-policies'],
       defaultConstraints: ['cache-cost-cap'],
-      defaultRubricId: 'cache-performance-rubric',
+      defaultRubricId: 'cache-hotspot-strategy-rubric',
       phrasingSkeleton: 'Mitigate a hot cache key under heavy load.',
     },
     {
@@ -285,7 +293,7 @@ export const cachingPack: TopicPack = {
       framing: 'Write-through/back choice, TTLs, and ordering controls.',
       primaryConcepts: ['cache-consistency', 'cache-invalidation'],
       defaultConstraints: ['cache-freshness'],
-      defaultRubricId: 'cache-reliability-rubric',
+      defaultRubricId: 'cache-consistency-plan-rubric',
       phrasingSkeleton: 'Explain cache consistency and freshness strategy.',
     },
     {
@@ -296,7 +304,7 @@ export const cachingPack: TopicPack = {
       framing: 'Prefetch strategy, health checks, and rollback triggers.',
       primaryConcepts: ['cache-population', 'cache-observability'],
       defaultConstraints: ['cache-fail-open'],
-      defaultRubricId: 'cache-reliability-rubric',
+      defaultRubricId: 'cache-warmup-rubric',
       phrasingSkeleton: 'Describe cache warmup and rollback signals.',
     },
     {

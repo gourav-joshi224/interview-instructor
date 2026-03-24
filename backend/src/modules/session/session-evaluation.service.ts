@@ -12,6 +12,7 @@ import { ConceptPerformance } from '../interview-brain/evaluation/session-aggreg
 import {
   EvaluationDifficulty,
   EvaluationExperience,
+  QuestionEvaluationResult,
   EvaluationTopic,
   Rubric,
   ScoreProfileId,
@@ -215,10 +216,12 @@ export class SessionEvaluationService {
       });
 
       const safeScore = this.sanitizeScore(evaluation.score);
+      const missedCheckpoints = this.buildMissedCheckpoints(rubric, evaluation);
 
       const result: SessionQuestionAggregationResult = {
         ...evaluation,
         score: safeScore,
+        missedCheckpoints,
         concept: stored?.subtopic ?? this.extractConcept(item.question),
         subtopic: stored?.subtopic ?? rubric.id,
         difficulty,
@@ -309,6 +312,33 @@ export class SessionEvaluationService {
       return 0;
     }
     return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  private buildMissedCheckpoints(rubric: Rubric, evaluation: QuestionEvaluationResult): string[] {
+    const mustHaveItems = Array.isArray(rubric.mustHave) ? rubric.mustHave.filter(Boolean) : [];
+
+    if (mustHaveItems.length === 0) {
+      return [];
+    }
+
+    if (evaluation.attemptGate.status === 'non_attempt') {
+      return mustHaveItems;
+    }
+
+    const correctnessRaw = evaluation.scoreBreakdown.dimensions.correctness.raw;
+    const completenessRaw = evaluation.scoreBreakdown.dimensions.completeness.raw;
+    const correctnessCompletenessNormalized = (correctnessRaw + completenessRaw) / 200;
+
+    if (correctnessCompletenessNormalized < 0.6) {
+      return mustHaveItems;
+    }
+
+    if (correctnessCompletenessNormalized <= 0.85) {
+      const deeperCheckpointCount = Math.floor(mustHaveItems.length / 2);
+      return deeperCheckpointCount > 0 ? mustHaveItems.slice(-deeperCheckpointCount) : [];
+    }
+
+    return [];
   }
 
   private buildRubric(question: string, topic: EvaluationTopic): Rubric {

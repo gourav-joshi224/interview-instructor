@@ -8,17 +8,29 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const backendUrl = process.env.BACKEND_API_URL ?? "http://127.0.0.1:3001";
-  const response = await fetch(`${backendUrl}/dashboard/interviews?limit=20`, {
-    method: "GET",
-    cache: "no-store",
-  });
-  const interviews = response.ok
-    ? (((await response.json()) as StoredInterviewResult[]) ?? [])
-    : [];
+  let interviews: StoredInterviewResult[] = [];
+
+  try {
+    const response = await fetch(`${backendUrl}/dashboard/interviews?limit=20`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    interviews = response.ok
+      ? (((await response.json()) as StoredInterviewResult[]) ?? [])
+      : [];
+  } catch {
+    interviews = [];
+  }
+
   const data = buildDashboardData(interviews);
 
   return (
-    <FullWidthSection className="page-shell py-[var(--space-2xl)] sm:py-[var(--space-3xl)]" contentClassName="space-y-6">
+    <FullWidthSection
+      className="page-shell"
+      contentClassName="full-app-shell py-4 sm:py-5"
+      fullBleed
+    >
       {interviews.length > 0 ? (
         <DashboardClient data={data} />
       ) : (

@@ -58,6 +58,11 @@ export const validateEnv = () => {
     fail('FIREBASE_PROJECT_ID', 'is required');
   }
 
+  const firebaseApiKey = process.env.FIREBASE_API_KEY ?? '';
+  if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(firebaseApiKey)) {
+    fail('FIREBASE_API_KEY', 'must be a valid Firebase Web API key');
+  }
+
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL ?? '';
   if (!clientEmail.includes('@')) {
     fail('FIREBASE_CLIENT_EMAIL', 'must contain @');
