@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 
 type SkillBreakdown = {
   architecture: number;
@@ -27,8 +28,22 @@ type EvaluationResult = {
 type SessionStatus = 'in_progress' | 'completed';
 
 type InterviewSessionAnswer = {
+  questionId: string;
   question: string;
   answer: string;
+};
+
+export type StoredQuestionPlanItem = {
+  questionId: string;
+  topicId: string;
+  familyKey: string;
+  archetype: string;
+  hookId: string;
+  concepts: string[];
+  subtopic: string;
+  rubricId?: string;
+  constraintSnapshot: Array<{ id: string; label: string; text: string }>;
+  renderedQuestion: string;
 };
 
 type DynamicSkillScore = {
@@ -64,9 +79,13 @@ type SaveInterviewSessionInput = {
   experience: string;
   difficulty: string;
   totalQuestions: number;
+  questionDeficit?: number;
   answers: InterviewSessionAnswer[];
   status: SessionStatus;
   report?: InterviewFinalReport | null;
+  questionPlan?: StoredQuestionPlanItem[];
+  userId?: string | null;
+  sessionVersion?: number;
 };
 
 type FirestoreValue =
@@ -74,6 +93,7 @@ type FirestoreValue =
   | { integerValue: string }
   | { booleanValue: boolean }
   | { timestampValue: string }
+  | { nullValue: null }
   | { mapValue: { fields: Record<string, FirestoreValue> } }
   | { arrayValue: { values: FirestoreValue[] } };
 
@@ -87,16 +107,16 @@ type FirestoreFields = Record<string, FirestoreValue>;
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
+  private readonly firebaseConfig: { apiKey: string; projectId: string };
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    this.firebaseConfig = this.loadFirebaseConfig();
+  }
 
   async saveInterview(input: SaveInterviewInput): Promise<string | null> {
     const config = this.getFirebaseConfig();
-    if (!config) {
-      return null;
-    }
 
-    const response = await fetch(this.collectionUrl('interviews', config.apiKey, config.projectId), {
+    const response = await this.firestoreFetch(this.collectionUrl('interviews', config.apiKey, config.projectId), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -115,11 +135,8 @@ export class StorageService {
 
   async getRecentInterviews(limit = 20): Promise<Array<Record<string, unknown>>> {
     const config = this.getFirebaseConfig();
-    if (!config) {
-      return [];
-    }
 
-    const response = await fetch(this.runQueryUrl(config.apiKey, config.projectId), {
+    const response = await this.firestoreFetch(this.runQueryUrl(config.apiKey, config.projectId), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -147,57 +164,83 @@ export class StorageService {
 
   async createInterviewSession(input: SaveInterviewSessionInput): Promise<string> {
     const config = this.getFirebaseConfig();
-    if (!config) {
-      // Stable mock fallback keeps frontend flow alive.
-      return `mock-${Date.now()}`;
+    const sessionId = randomUUID();
+    const fields = this.buildSessionFieldsForCreate(input);
+    const updateMask = Object.keys(fields);
+    const updateTransforms = [
+      this.serverTimestampTransform('createdAt'),
+      this.serverTimestampTransform('updatedAt'),
+    ];
+
+    if (input.status === 'completed') {
+      updateTransforms.push(this.serverTimestampTransform('finishedAt'));
     }
 
-    const response = await fetch(
-      this.collectionUrl('interviewSessions', config.apiKey, config.projectId),
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: this.buildSessionFields(input),
-        }),
+    const response = await this.firestoreFetch(this.commitUrl(config.apiKey, config.projectId), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({
+        writes: [
+          {
+            update: {
+              name: this.documentName(`interviewSessions/${sessionId}`, config.projectId),
+              fields,
+            },
+            updateMask: { fieldPaths: updateMask },
+            currentDocument: { exists: false },
+            updateTransforms,
+          },
+        ],
+      }),
+    });
 
     if (!response.ok) {
       const details = await response.text();
       throw new Error(`Failed to create interview session: ${details}`);
     }
 
-    const payload = (await response.json()) as { name?: string };
-    const sessionId = payload.name?.split('/').pop();
-
-    if (!sessionId) {
-      throw new Error('Failed to parse created session id.');
-    }
-
     return sessionId;
   }
 
-  async updateInterviewSession(sessionId: string, input: SaveInterviewSessionInput): Promise<void> {
+  async updateInterviewSession(
+    sessionId: string,
+    input: Partial<SaveInterviewSessionInput>,
+    options?: { markFinished?: boolean },
+  ): Promise<void> {
     const config = this.getFirebaseConfig();
-    if (!config) {
-      return;
+    const fields = this.buildSessionFields(input);
+    const updateMask = Object.keys(fields);
+
+    if (updateMask.length === 0) {
+      throw new Error('No fields provided to update interview session.');
+    }
+    const updateTransforms = [this.serverTimestampTransform('updatedAt')];
+
+    if (options?.markFinished) {
+      updateTransforms.push(this.serverTimestampTransform('finishedAt'));
     }
 
-    const response = await fetch(
-      this.documentUrl(`interviewSessions/${sessionId}`, config.apiKey, config.projectId),
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fields: this.buildSessionFields(input),
-        }),
+    const response = await this.firestoreFetch(this.commitUrl(config.apiKey, config.projectId), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({
+        writes: [
+          {
+            update: {
+              name: this.documentName(`interviewSessions/${sessionId}`, config.projectId),
+              fields,
+            },
+            updateMask: { fieldPaths: updateMask },
+            currentDocument: { exists: true },
+            updateTransforms,
+          },
+        ],
+      }),
+    });
 
     if (!response.ok) {
       const details = await response.text();
@@ -207,20 +250,8 @@ export class StorageService {
 
   async getInterviewSession(sessionId: string): Promise<Record<string, unknown> | null> {
     const config = this.getFirebaseConfig();
-    if (!config) {
-      return {
-        sessionId,
-        topic: 'System Design',
-        experience: 'mid-level',
-        difficulty: 'medium',
-        totalQuestions: 5,
-        answers: [],
-        status: 'in_progress',
-        report: null,
-      };
-    }
 
-    const response = await fetch(
+    const response = await this.firestoreFetch(
       this.documentUrl(`interviewSessions/${sessionId}`, config.apiKey, config.projectId),
       {
         method: 'GET',
@@ -240,34 +271,25 @@ export class StorageService {
     return this.parseSessionDocument(document);
   }
 
-  private getFirebaseConfig() {
+  private loadFirebaseConfig() {
     const apiKey = this.configService.get<string>('firebase.apiKey', '');
     const projectId = this.configService.get<string>('firebase.projectId', '');
-
-    if (!apiKey || !projectId) {
-      this.logger.warn('Firebase env missing. Falling back to non-persistent mode.');
-      return null;
-    }
 
     const apiKeyLooksValid = /^AIza[0-9A-Za-z_-]{20,}$/.test(apiKey);
     const projectIdLooksValid = /^[a-z][a-z0-9-]{4,}$/.test(projectId);
     const valuesLookSwapped = !apiKeyLooksValid && /^AIza[0-9A-Za-z_-]{20,}$/.test(projectId);
 
-    if (valuesLookSwapped) {
-      this.logger.error(
-        'Firebase env appears swapped: FIREBASE_API_KEY should be the AIza... key and FIREBASE_PROJECT_ID should be the project id (e.g. interview-gym). Falling back to non-persistent mode.',
+    if (!apiKey || !projectId || !apiKeyLooksValid || !projectIdLooksValid || valuesLookSwapped) {
+      throw new Error(
+        'STORAGE_INIT_FAILED: Firebase config missing or invalid. Set FIREBASE_API_KEY and FIREBASE_PROJECT_ID.',
       );
-      return null;
-    }
-
-    if (!apiKeyLooksValid || !projectIdLooksValid) {
-      this.logger.warn(
-        'Firebase env format looks invalid. Check FIREBASE_API_KEY and FIREBASE_PROJECT_ID. Falling back to non-persistent mode.',
-      );
-      return null;
     }
 
     return { apiKey, projectId };
+  }
+
+  private getFirebaseConfig() {
+    return this.firebaseConfig;
   }
 
   private stringField(value: string): FirestoreValue {
@@ -280,6 +302,17 @@ export class StorageService {
 
   private booleanField(value: boolean): FirestoreValue {
     return { booleanValue: value };
+  }
+
+  private nullField(): FirestoreValue {
+    return { nullValue: null };
+  }
+
+  private nullableStringField(value: string | null | undefined): FirestoreValue {
+    if (value === null || value === undefined) {
+      return this.nullField();
+    }
+    return this.stringField(value);
   }
 
   private timestampField(value: string): FirestoreValue {
@@ -315,8 +348,44 @@ export class StorageService {
         values: values.map((value) => ({
           mapValue: {
             fields: {
+              questionId: this.stringField(value.questionId),
               question: this.stringField(value.question),
               answer: this.stringField(value.answer),
+            },
+          },
+        })),
+      },
+    };
+  }
+
+  private questionPlanArrayField(values: StoredQuestionPlanItem[]): FirestoreValue {
+    return {
+      arrayValue: {
+        values: values.map((value) => ({
+          mapValue: {
+            fields: {
+              questionId: this.stringField(value.questionId),
+              topicId: this.stringField(value.topicId),
+              familyKey: this.stringField(value.familyKey),
+              archetype: this.stringField(value.archetype),
+              hookId: this.stringField(value.hookId),
+              subtopic: this.stringField(value.subtopic),
+              rubricId: this.stringField(value.rubricId ?? ''),
+              renderedQuestion: this.stringField(value.renderedQuestion),
+              concepts: this.arrayField(value.concepts),
+              constraintSnapshot: {
+                arrayValue: {
+                  values: value.constraintSnapshot.map((item) => ({
+                    mapValue: {
+                      fields: {
+                        id: this.stringField(item.id),
+                        label: this.stringField(item.label),
+                        text: this.stringField(item.text),
+                      },
+                    },
+                  })),
+                },
+              },
             },
           },
         })),
@@ -356,6 +425,10 @@ export class StorageService {
     return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}?key=${apiKey}`;
   }
 
+  private documentName(path: string, projectId: string) {
+    return `projects/${projectId}/databases/(default)/documents/${path}`;
+  }
+
   private collectionUrl(path: string, apiKey: string, projectId: string) {
     return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}?key=${apiKey}`;
   }
@@ -364,8 +437,46 @@ export class StorageService {
     return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
   }
 
+  private commitUrl(apiKey: string, projectId: string) {
+    return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit?key=${apiKey}`;
+  }
+
+  private async firestoreFetch(input: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      const errorWithCause = error as Error & { cause?: unknown };
+      const reason = error instanceof Error ? errorWithCause.cause ?? error.message : 'unknown transport error';
+      const normalizedReason =
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === 'string'
+            ? reason
+            : JSON.stringify(reason);
+
+      throw new Error(
+        `STORAGE_REQUEST_FAILED: Unable to reach Firestore for project "${this.firebaseConfig.projectId}". ${normalizedReason}`,
+      );
+    }
+  }
+
+  private serverTimestampTransform(fieldPath: string) {
+    return { fieldPath, setToServerValue: 'REQUEST_TIME' as const };
+  }
+
   private readString(value: FirestoreValue | undefined) {
     return value && 'stringValue' in value ? value.stringValue : '';
+  }
+
+  private readNullableString(value: FirestoreValue | undefined) {
+    if (!value) return null;
+    if ('nullValue' in value) return null;
+    if ('stringValue' in value) return value.stringValue;
+    return null;
+  }
+
+  private readTimestamp(value: FirestoreValue | undefined) {
+    return value && 'timestampValue' in value ? value.timestampValue : '';
   }
 
   private readMapFields(value: FirestoreValue | undefined): FirestoreFields {
@@ -412,11 +523,57 @@ export class StorageService {
         const fields = item.mapValue.fields ?? {};
 
         return {
+          questionId: this.readString(fields.questionId),
           question: this.readString(fields.question),
           answer: this.readString(fields.answer),
         };
       })
-      .filter((item): item is InterviewSessionAnswer => Boolean(item?.question));
+      .filter((item): item is InterviewSessionAnswer => Boolean(item?.questionId));
+  }
+
+  private readQuestionPlan(value: FirestoreValue | undefined): StoredQuestionPlanItem[] {
+    if (!value || !('arrayValue' in value)) {
+      return [];
+    }
+
+    const items = (value.arrayValue.values ?? [])
+      .map((item): StoredQuestionPlanItem | null => {
+        if (!('mapValue' in item)) return null;
+        const fields = item.mapValue.fields ?? {};
+        const constraints = this.readConstraintSnapshot(fields.constraintSnapshot);
+        return {
+          questionId: this.readString(fields.questionId),
+          topicId: this.readString(fields.topicId),
+          familyKey: this.readString(fields.familyKey),
+          archetype: this.readString(fields.archetype),
+          hookId: this.readString(fields.hookId),
+          subtopic: this.readString(fields.subtopic),
+          rubricId: this.readString(fields.rubricId) || undefined,
+          renderedQuestion: this.readString(fields.renderedQuestion),
+          concepts: this.readStringArray(fields.concepts),
+          constraintSnapshot: constraints,
+        };
+      })
+      .filter((item): item is StoredQuestionPlanItem => Boolean(item && item.questionId));
+
+    return items;
+  }
+
+  private readConstraintSnapshot(value: FirestoreValue | undefined): Array<{ id: string; label: string; text: string }> {
+    if (!value || !('arrayValue' in value)) {
+      return [];
+    }
+    return (value.arrayValue.values ?? [])
+      .map((item) => {
+        if (!('mapValue' in item)) return null;
+        const fields = item.mapValue.fields ?? {};
+        return {
+          id: this.readString(fields.id),
+          label: this.readString(fields.label),
+          text: this.readString(fields.text),
+        };
+      })
+      .filter((item): item is { id: string; label: string; text: string } => Boolean(item && item.id));
   }
 
   private readDynamicSkillBreakdown(value: FirestoreValue | undefined): DynamicSkillScore[] {
@@ -536,8 +693,15 @@ export class StorageService {
       experience: this.readString(fields.experience),
       difficulty: this.readString(fields.difficulty),
       totalQuestions: this.readNumber(fields.totalQuestions),
+      questionDeficit: this.readNumber(fields.questionDeficit),
       status: this.readString(fields.status) === 'completed' ? 'completed' : 'in_progress',
       answers: this.readAnswers(fields.answers),
+      questionPlan: this.readQuestionPlan(fields.questionPlan),
+      createdAt: this.readTimestamp(fields.createdAt),
+      updatedAt: this.readTimestamp(fields.updatedAt),
+      finishedAt: this.readTimestamp(fields.finishedAt),
+      userId: this.readNullableString(fields.userId),
+      sessionVersion: this.readNumber(fields.sessionVersion) || null,
       report,
     };
   }
@@ -564,31 +728,58 @@ export class StorageService {
     };
   }
 
-  private buildSessionFields(input: SaveInterviewSessionInput): Record<string, FirestoreValue> {
+  private buildSessionFieldsForCreate(input: SaveInterviewSessionInput): Record<string, FirestoreValue> {
     return {
-      topic: this.stringField(input.topic),
-      experience: this.stringField(input.experience),
-      difficulty: this.stringField(input.difficulty),
-      totalQuestions: this.integerField(input.totalQuestions),
-      answers: this.answersArrayField(input.answers),
-      status: this.stringField(input.status),
-      report: {
-        mapValue: {
-          fields: input.report
-            ? {
-                overallScore: this.integerField(input.report.overallScore),
-                strengths: this.arrayField(input.report.strengths),
-                weakAreas: this.arrayField(input.report.weakAreas),
-                communicationFeedback: this.stringField(input.report.communicationFeedback),
-                technicalFeedback: this.stringField(input.report.technicalFeedback),
-                improvementPlan: this.stringField(input.report.improvementPlan),
-                skillBreakdown: this.dynamicSkillBreakdownField(input.report.skillBreakdown),
-                learningResources: this.resourceArrayField(input.report.learningResources),
-              }
-            : {},
-        },
+      ...this.buildSessionFields({
+        topic: input.topic,
+        experience: input.experience,
+        difficulty: input.difficulty,
+        totalQuestions: input.totalQuestions,
+        questionDeficit: input.questionDeficit ?? 0,
+        answers: input.answers,
+        status: input.status,
+        questionPlan: input.questionPlan ?? [],
+        report: input.report ?? null,
+      }),
+      userId: this.nullableStringField(input.userId ?? null),
+      sessionVersion: this.integerField(1),
+    };
+  }
+
+  private buildSessionFields(input: Partial<SaveInterviewSessionInput>): Record<string, FirestoreValue> {
+    const fields: Record<string, FirestoreValue> = {};
+
+    if (input.topic !== undefined) fields.topic = this.stringField(input.topic);
+    if (input.experience !== undefined) fields.experience = this.stringField(input.experience);
+    if (input.difficulty !== undefined) fields.difficulty = this.stringField(input.difficulty);
+    if (input.totalQuestions !== undefined) fields.totalQuestions = this.integerField(input.totalQuestions);
+    if (input.questionDeficit !== undefined) fields.questionDeficit = this.integerField(input.questionDeficit);
+    if (input.answers !== undefined) fields.answers = this.answersArrayField(input.answers);
+    if (input.status !== undefined) fields.status = this.stringField(input.status);
+    if (input.questionPlan !== undefined) fields.questionPlan = this.questionPlanArrayField(input.questionPlan);
+    if (input.report !== undefined) fields.report = this.reportField(input.report ?? null);
+    if (input.userId !== undefined) fields.userId = this.nullableStringField(input.userId);
+    if (input.sessionVersion !== undefined) fields.sessionVersion = this.integerField(input.sessionVersion);
+
+    return fields;
+  }
+
+  private reportField(report: InterviewFinalReport | null): FirestoreValue {
+    return {
+      mapValue: {
+        fields: report
+          ? {
+              overallScore: this.integerField(report.overallScore),
+              strengths: this.arrayField(report.strengths),
+              weakAreas: this.arrayField(report.weakAreas),
+              communicationFeedback: this.stringField(report.communicationFeedback),
+              technicalFeedback: this.stringField(report.technicalFeedback),
+              improvementPlan: this.stringField(report.improvementPlan),
+              skillBreakdown: this.dynamicSkillBreakdownField(report.skillBreakdown),
+              learningResources: this.resourceArrayField(report.learningResources),
+            }
+          : {},
       },
-      updatedAt: this.timestampField(new Date().toISOString()),
     };
   }
 }

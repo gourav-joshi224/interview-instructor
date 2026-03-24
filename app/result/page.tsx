@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EvaluationCard } from "@/components/EvaluationCard";
 import { FullWidthSection } from "@/components/FullWidthSection";
 import { InterviewReportCard } from "@/components/InterviewReportCard";
+import type { RetryParams } from "@/lib/local-history";
 import type { StoredInterviewResult } from "@/lib/types";
 import type { FinishResponse } from "@/lib/view-types";
 
 export default function ResultPage() {
+  const router = useRouter();
   const [result, setResult] = useState<StoredInterviewResult | null>(null);
   const [report, setReport] = useState<FinishResponse | null>(null);
 
@@ -32,10 +35,33 @@ export default function ResultPage() {
     }
   }, []);
 
+  const handleRetryWeakAreas = (params: RetryParams) => {
+    const nextParams = new URLSearchParams({
+      retryTopic: params.topic,
+      retryExperience: params.experience,
+      retryDifficulty: params.difficulty,
+      retryTotalQuestions: params.totalQuestions,
+    });
+
+    if (params.focusConcepts.length > 0) {
+      nextParams.set("retryConcepts", params.focusConcepts.join(","));
+    }
+
+    if (params.sourceWeakAreas.length > 0) {
+      nextParams.set("retryWeakAreas", params.sourceWeakAreas.join(","));
+    }
+
+    router.push(`/?${nextParams.toString()}#setup`);
+  };
+
   return (
-    <FullWidthSection className="page-shell py-[var(--space-2xl)] sm:py-[var(--space-3xl)]" contentClassName="space-y-6">
+    <FullWidthSection
+      className="page-shell"
+      contentClassName="full-app-shell py-4 sm:py-5"
+      fullBleed
+    >
       {report ? (
-        <InterviewReportCard report={report} />
+        <InterviewReportCard report={report} onRetryWeakAreas={handleRetryWeakAreas} />
       ) : result ? (
         <EvaluationCard result={result} />
       ) : (

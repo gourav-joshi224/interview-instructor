@@ -14,17 +14,41 @@ export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp();
     const response = context.getResponse();
+    const request = context.getRequest();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const errorMessage = exception instanceof Error ? exception.message : 'Unknown error';
 
-    // Keep frontend response safe and stable. Internal details are only logged.
-    this.logger.error('Unhandled request error', exception instanceof Error ? exception.stack : undefined);
+    const logContext = `${request.method ?? 'UNKNOWN'} ${request.url ?? ''}`;
+    if (status >= 500) {
+      if (exception instanceof Error) {
+        this.logger.error(exception.message, exception.stack);
+      } else {
+        this.logger.error(`Request failed ${logContext} -> ${status} ${errorMessage}`);
+      }
+    } else {
+      this.logger.warn(`Request failed ${logContext} -> ${status} ${errorMessage}`);
+    }
 
-    response.status(status).json({
-      error: status >= 500 ? 'Internal server error.' : 'Request failed.',
+    if (exception instanceof HttpException) {
+      const exceptionResponse = exception.getResponse();
+      const body =
+        typeof exceptionResponse === 'object'
+          ? exceptionResponse
+          : { error: exceptionResponse, statusCode: exception.getStatus() };
+
+      response.status(status).json({
+        ...body,
+        statusCode: exception.getStatus(),
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+      error: 'INTERNAL_ERROR',
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+      timestamp: new Date().toISOString(),
     });
   }
 }

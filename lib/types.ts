@@ -59,6 +59,7 @@ export type DashboardData = {
 export type SessionStatus = "in_progress" | "completed";
 
 export type InterviewSessionAnswer = {
+  questionId: string;
   question: string;
   answer: string;
 };

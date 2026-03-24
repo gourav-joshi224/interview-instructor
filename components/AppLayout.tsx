@@ -14,7 +14,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         Skip to content
       </a>
       <TopNavbar />
-      <div id="main-content" className="flex min-h-[calc(100dvh-96px)] flex-col">
+      <div id="main-content" className="flex min-h-[calc(100dvh-88px)] flex-col">
         {children}
       </div>
     </div>

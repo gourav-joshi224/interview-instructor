@@ -7,7 +7,11 @@ export const dynamic = "force-dynamic";
 
 export default function InterviewPage() {
   return (
-    <FullWidthSection className="page-shell py-[var(--space-2xl)] sm:py-[var(--space-3xl)]" contentClassName="space-y-6">
+    <FullWidthSection
+      className="page-shell"
+      contentClassName="full-app-shell py-4 sm:py-5"
+      fullBleed
+    >
       <Suspense
         fallback={
           <LoadingScreen

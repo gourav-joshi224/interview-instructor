@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { QuestionAssemblyService, QuestionRendererService } from '../interview-brain';
+import { TopicId } from '../interview-brain/content';
 
 type SkillBreakdown = {
   architecture: number;
@@ -37,10 +39,14 @@ export class AiService {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly questionAssembly: QuestionAssemblyService,
+    private readonly questionRenderer: QuestionRendererService,
+  ) {
     const apiKey = this.configService.get<string>('xai.apiKey', '');
     const baseURL = this.configService.get<string>('xai.baseUrl', 'https://api.x.ai/v1');
-    this.model = this.configService.get<string>('xai.model', 'grok-2-latest');
+    this.model = this.configService.get<string>('xai.model', 'llama-3.1-8b-instant');
 
     this.client = new OpenAI({ apiKey, baseURL });
   }
@@ -52,9 +58,14 @@ export class AiService {
   }): Promise<{ question: string }> {
     const trimmedTopic = input.topic?.trim() || 'Backend Development';
 
+    const assembled = this.tryAssembleQuestion(trimmedTopic, input);
+    if (assembled) {
+      return assembled;
+    }
+
     if (!this.configService.get<string>('xai.apiKey')) {
       this.logger.warn('XAI_API_KEY missing. Returning fallback question.');
-      return this.getFallbackQuestion(trimmedTopic);
+      return this.renderFromTopicPacks(trimmedTopic);
     }
 
     try {
@@ -90,7 +101,7 @@ export class AiService {
       return { question };
     } catch (error) {
       this.logger.error('Question generation failed. Returning fallback.', error instanceof Error ? error.stack : undefined);
-      return this.getFallbackQuestion(trimmedTopic);
+      return this.renderFromTopicPacks(trimmedTopic);
     }
   }
 
@@ -344,6 +355,21 @@ export class AiService {
     };
   }
 
+  private renderFromTopicPacks(topic: string): { question: string } {
+    const topicId = this.toTopicId(topic);
+
+    if (topicId) {
+      try {
+        const rendered = this.questionRenderer.render({ topicId });
+        return { question: rendered.text };
+      } catch (error) {
+        this.logger.warn(`Structured topic pack render failed for ${topic}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    return this.getFallbackQuestion(topic);
+  }
+
   private getFallbackQuestion(topic: string): { question: string } {
     return {
       question: `How would you design a scalable ${topic} backend API that handles retries, caching, and observability?`,
@@ -420,6 +446,43 @@ export class AiService {
     };
 
     return table[key] ?? ['architecture', 'scalability', 'data modeling', 'caching'];
+  }
+
+  private toTopicId(topic: string): TopicId | null {
+    const normalized = topic.trim().toLowerCase();
+    if (normalized === 'system design' || normalized === 'system-design') return 'system-design';
+    if (normalized === 'databases' || normalized === 'database') return 'databases';
+    if (normalized === 'caching' || normalized === 'cache') return 'caching';
+    if (normalized === 'queues' || normalized === 'queue') return 'queues';
+    if (normalized === 'apis' || normalized === 'api') return 'apis';
+    if (normalized === 'concurrency') return 'concurrency';
+    if (normalized === 'javascript' || normalized === 'js') return 'javascript';
+    if (normalized === 'nodejs' || normalized === 'node.js' || normalized === 'node') return 'nodejs';
+    return null;
+  }
+
+  private tryAssembleQuestion(
+    topic: string,
+    input: { experience?: string; difficulty?: string },
+  ): { question: string } | null {
+    const topicId = this.toTopicId(topic);
+    if (!topicId) {
+      return null;
+    }
+    try {
+      const assembled = this.questionAssembly.assemble({
+        topicId,
+        difficulty: input.difficulty ?? 'medium',
+        experience: input.experience ?? 'mid',
+        totalQuestions: 1,
+      });
+      if (assembled.questions.length > 0) {
+        return { question: assembled.questions[0].rendered.text };
+      }
+    } catch (error) {
+      this.logger.warn(`Assembly pipeline failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return null;
   }
 
   private mapLearningResources(topic: string, missingConcepts: string[]): Array<{ title: string; url: string }> {

@@ -30,11 +30,11 @@ export function LoadingScreen({
   }, [messages]);
 
   return (
-    <div className="flex min-h-[420px] items-center justify-center">
+    <div className="flex min-h-[70dvh] items-center justify-center">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="surface-card flex w-full max-w-2xl flex-col items-center gap-6 px-8 py-14 text-center"
+        className="editor-panel flex w-full max-w-3xl flex-col items-center gap-6 px-8 py-14 text-center"
       >
         <motion.div
           animate={{ rotate: 360 }}
