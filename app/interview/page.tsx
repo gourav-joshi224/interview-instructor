@@ -3,8 +3,6 @@ import { Suspense } from "react";
 import { InterviewBox } from "@/components/InterviewBox";
 import { LoadingScreen } from "@/components/LoadingScreen";
 
-export const dynamic = "force-dynamic";
-
 export default function InterviewPage() {
   return (
     <FullWidthSection

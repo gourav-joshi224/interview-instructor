@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { buildBackendUrl } from "@/lib/backend";
 import { Logo } from "@/components/Logo";
 import { saveSessionScore } from "@/lib/local-history";
 import { LoadingScreen } from "./LoadingScreen";
@@ -195,7 +196,7 @@ export function InterviewBox() {
       try {
         const recentQuestionIds = readSeenQuestionIds(topic);
 
-        const startPromise = fetch("/api/session/start", {
+        const startPromise = fetch(buildBackendUrl("/session/start"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -277,7 +278,7 @@ export function InterviewBox() {
 
     try {
       const [progressResponse] = await Promise.all([
-        fetch("/api/session/progress", {
+        fetch(buildBackendUrl("/session/progress"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -333,7 +334,7 @@ export function InterviewBox() {
 
     try {
       const [finishResponse] = await Promise.all([
-        fetch("/api/session/finish", {
+        fetch(buildBackendUrl("/session/finish"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
