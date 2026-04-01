@@ -17,18 +17,68 @@ import type { DashboardData } from "@/lib/types";
 
 type DashboardClientProps = {
   data: DashboardData;
+  sessions: Array<{
+    sessionId: string;
+    topic: string;
+    experience: string;
+    difficulty: string;
+    totalQuestions: number;
+    status: string;
+    overallScore: number | null;
+    createdAt: string;
+  }>;
+  userName?: string;
 };
 
-export function DashboardClient({ data }: DashboardClientProps) {
+function formatCreatedAt(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return date.toLocaleString();
+}
+
+export function DashboardClient({ data, sessions, userName = "" }: DashboardClientProps) {
+  const completedSessions = sessions.filter((session) => session.overallScore !== null);
   const averageScore =
-    data.interviews.length > 0
+    completedSessions.length > 0
       ? (
-          data.interviews.reduce((sum, item) => sum + item.score, 0) /
-          data.interviews.length
+          completedSessions.reduce((sum, item) => sum + (item.overallScore ?? 0), 0) /
+          completedSessions.length
         ).toFixed(1)
       : "0.0";
 
-  const recentSessions = data.interviews.slice(0, 4);
+  const recentSessions = sessions.slice(0, 4);
+  const latestCompletedSession = completedSessions[0] ?? null;
+  const oldestCompletedSession = completedSessions[completedSessions.length - 1] ?? null;
+  const trendDelta =
+    latestCompletedSession && oldestCompletedSession
+      ? (latestCompletedSession.overallScore ?? 0) - (oldestCompletedSession.overallScore ?? 0)
+      : 0;
+  const trendMessage =
+    completedSessions.length === 0
+      ? "Complete your first interview to start seeing progress trends."
+      : completedSessions.length === 1
+        ? `First completed session recorded in ${latestCompletedSession?.topic ?? "your dashboard"}.`
+        : trendDelta > 0
+          ? `Up ${trendDelta.toFixed(0)} points from your oldest visible completed session.`
+          : trendDelta < 0
+            ? `Down ${Math.abs(trendDelta).toFixed(0)} points from your oldest visible completed session.`
+            : "Holding steady across your recent completed sessions.";
+  const improvementMessage =
+    completedSessions.length === 0
+      ? "Start an interview to generate your first personalized score."
+      : `Average score is ${averageScore}/100 across ${completedSessions.length} completed sessions.`;
+  const coveredTopics = [...new Set(sessions.map((session) => session.topic).filter(Boolean))];
+  const coverageMessage =
+    coveredTopics.length > 0
+      ? coveredTopics.slice(0, 4).join(", ")
+      : "No completed topic coverage yet.";
+  const hasSkillData = data.interviews.some((interview) =>
+    Object.values(interview.skillBreakdown).some((score) => score > 0),
+  );
 
   return (
     <div className="space-y-5">
@@ -52,7 +102,7 @@ export function DashboardClient({ data }: DashboardClientProps) {
                 {[
                   ["Sessions", `${data.interviews.length}`],
                   ["Average score", averageScore],
-                  ["Strongest trend", data.insight.strongestMessage],
+                  ["Strongest trend", trendMessage],
                 ].map(([label, value], index) => (
                   <div key={label} className={`dashboard-tile rounded-[1.5rem] px-4 py-4 ${index === 2 ? "sm:col-span-3" : ""}`}>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/58">{label}</p>
@@ -68,12 +118,12 @@ export function DashboardClient({ data }: DashboardClientProps) {
               {[
                 {
                   label: "Momentum",
-                  value: data.insight.strongestMessage,
+                  value: trendMessage,
                   icon: TrendingUp,
                 },
                 {
                   label: "Next focus",
-                  value: data.insight.improvementMessage,
+                  value: improvementMessage,
                   icon: Target,
                 },
                 {
@@ -83,7 +133,7 @@ export function DashboardClient({ data }: DashboardClientProps) {
                 },
                 {
                   label: "Coverage",
-                  value: "Architecture, scalability, data modeling, caching",
+                  value: coverageMessage,
                   icon: Layers3,
                 },
               ].map((item) => {
@@ -132,7 +182,14 @@ export function DashboardClient({ data }: DashboardClientProps) {
             <p className="section-kicker">Skill Averages</p>
             <h2 className="mt-2 section-title">Average skill scores</h2>
           </div>
-          <SkillProgress skills={data.averages} />
+          {hasSkillData ? (
+            <SkillProgress skills={data.averages} />
+          ) : (
+            <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
+              Session history is available now. Detailed skill averages are not included in the
+              `/dashboard/my-sessions` response yet, so this panel will populate when that data is exposed.
+            </p>
+          )}
         </motion.div>
 
         <motion.div
@@ -151,10 +208,10 @@ export function DashboardClient({ data }: DashboardClientProps) {
             </div>
           </div>
           <div className="soft-card rounded-[1.35rem] p-5 text-sm leading-7 text-[var(--color-text-primary)]">
-            {data.insight.strongestMessage}
+            {trendMessage}
           </div>
           <div className="rounded-[1.35rem] border border-[rgba(229,57,53,0.16)] bg-[var(--color-danger-light)] p-5 text-sm leading-7 text-[var(--color-text-primary)]">
-            {data.insight.improvementMessage}
+            {improvementMessage}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <div className="soft-card rounded-[1.25rem] p-5">
@@ -203,26 +260,32 @@ export function DashboardClient({ data }: DashboardClientProps) {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">Last 4</p>
           </div>
           <div className="space-y-3">
-            {recentSessions.map((interview) => (
-              <div
-                key={interview.interviewId ?? `${interview.question}-${interview.score}`}
-                className="soft-card rounded-[1.25rem] p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">
-                      {interview.topic}
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
-                      {interview.experience} / {interview.difficulty}
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-[rgba(176,236,112,0.18)] px-3 py-1 text-sm font-semibold text-[var(--color-primary-dark)]">
-                    {interview.score}/10
+            {recentSessions.length > 0 ? (
+              recentSessions.map((session) => (
+                <div key={session.sessionId} className="soft-card rounded-[1.25rem] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-text-secondary)]">
+                        {session.topic}
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
+                        {session.experience} / {session.difficulty}
+                      </p>
+                      <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+                        {session.status} • {formatCreatedAt(session.createdAt)}
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-[rgba(176,236,112,0.18)] px-3 py-1 text-sm font-semibold text-[var(--color-primary-dark)]">
+                      {session.overallScore === null ? "Pending" : `${session.overallScore}/100`}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
+                No sessions yet. Start your first interview to see your history here.
+              </p>
+            )}
           </div>
         </motion.div>
       </div>
@@ -237,45 +300,51 @@ export function DashboardClient({ data }: DashboardClientProps) {
           <div>
             <p className="section-kicker">Interview History</p>
             <h2 className="mt-2 section-title">Recent evaluations</h2>
+            {userName ? (
+              <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">Welcome back, {userName}</p>
+            ) : null}
           </div>
           <p className="text-sm text-[var(--color-text-secondary)]">Showing the latest 20 sessions</p>
         </div>
 
         <div className="grid gap-4">
-          {data.interviews.length > 0 ? (
-            data.interviews.map((interview) => (
+          {sessions.length > 0 ? (
+            sessions.map((session) => (
               <div
-                key={interview.interviewId ?? `${interview.question}-${interview.score}`}
+                key={session.sessionId}
                 className="soft-card rounded-[1.4rem] p-5"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2 text-type-caption uppercase text-[var(--color-text-secondary)]">
-                      <span>{interview.topic}</span>
+                      <span>{session.topic}</span>
                       <span>/</span>
-                      <span>{interview.experience}</span>
+                      <span>{session.experience}</span>
                       <span>/</span>
-                      <span>{interview.difficulty}</span>
-                      {interview.cached ? (
-                        <span className="rounded-full bg-[rgba(176,236,112,0.35)] px-2 py-1 text-[var(--color-primary-dark)]">
-                          Cached
-                        </span>
-                      ) : null}
+                      <span>{session.difficulty}</span>
+                      <span>/</span>
+                      <span>{session.status}</span>
                     </div>
-                    <p className="text-sm leading-7 text-[var(--color-text-primary)]">{interview.question}</p>
-                    <p className="text-sm text-[var(--color-text-secondary)]">{interview.followUpQuestion}</p>
+                    <p className="text-sm leading-7 text-[var(--color-text-primary)]">
+                      Session ID: {session.sessionId}
+                    </p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">
+                      {session.totalQuestions} questions • {formatCreatedAt(session.createdAt)}
+                    </p>
                   </div>
 
                   <div className="min-w-[108px] rounded-[1.2rem] bg-[var(--color-primary-dark)] px-4 py-4 text-center text-[var(--color-text-on-dark)]">
                     <p className="section-kicker !text-white/68">Score</p>
-                    <p className="numeric-tabular mt-2 text-type-h3 text-white">{interview.score}/10</p>
+                    <p className="numeric-tabular mt-2 text-type-h3 text-white">
+                      {session.overallScore === null ? "Pending" : `${session.overallScore}/100`}
+                    </p>
                   </div>
                 </div>
               </div>
             ))
           ) : (
             <p className="text-sm leading-7 text-[var(--color-text-secondary)]">
-              No interview history yet. Finish one session and come back here.
+              No sessions yet. Start your first interview to see your history here.
             </p>
           )}
         </div>

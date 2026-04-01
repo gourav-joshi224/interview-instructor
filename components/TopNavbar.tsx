@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ArrowUpRight, LayoutDashboard, Menu, X } from "lucide-react";
+import { AuthButton } from "@/components/AuthButton";
 import { Logo } from "@/components/Logo";
 
 const navLinks = [
@@ -57,17 +58,20 @@ export function TopNavbar() {
           })}
         </nav>
 
-        <Link
-          href="/dashboard"
-          className={`hidden min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition sm:inline-flex ${
-            onLanding
-              ? "bg-white/10 text-white hover:bg-white/14"
-              : "bg-[rgba(20,69,22,0.06)] text-[var(--color-primary-dark)] hover:bg-[rgba(20,69,22,0.1)]"
-          }`}
-        >
-          Live progress
-          <ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />
-        </Link>
+        <div className="hidden items-center gap-3 sm:flex">
+          <Link
+            href="/dashboard"
+            className={`min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition sm:inline-flex ${
+              onLanding
+                ? "bg-white/10 text-white hover:bg-white/14"
+                : "bg-[rgba(20,69,22,0.06)] text-[var(--color-primary-dark)] hover:bg-[rgba(20,69,22,0.1)]"
+            }`}
+          >
+            Live progress
+            <ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />
+          </Link>
+          <AuthButton />
+        </div>
 
         <button
           type="button"
@@ -100,6 +104,9 @@ export function TopNavbar() {
             Live progress
             <ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />
           </Link>
+          <div className="pt-1">
+            <AuthButton />
+          </div>
         </div>
       ) : null}
     </header>
