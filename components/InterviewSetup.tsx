@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { getSessionScores, type RetryParams, type ScoreEntry } from "@/lib/local-history";
 
 type ChoiceOption = {
@@ -151,6 +152,7 @@ type InterviewSetupProps = {
 
 export function InterviewSetup({ retryParams = null }: InterviewSetupProps) {
   const router = useRouter();
+  const { user, loading, signIn } = useAuth();
   const reduceMotion = useReducedMotion();
   const [step, setStep] = useState(0);
   const [topic, setTopic] = useState("");
@@ -161,6 +163,7 @@ export function InterviewSetup({ retryParams = null }: InterviewSetupProps) {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [lastTopicScore, setLastTopicScore] = useState<ScoreEntry | null>(null);
 
   const totalSteps = STEP_TITLES.length;
@@ -275,6 +278,25 @@ export function InterviewSetup({ retryParams = null }: InterviewSetupProps) {
   };
 
   const startInterview = async () => {
+    if (loading) {
+      return;
+    }
+
+    if (!user) {
+      setError("");
+      setSigningIn(true);
+
+      try {
+        await signIn();
+      } catch {
+        setError("Please sign in with Google to start your interview.");
+        setSigningIn(false);
+        return;
+      }
+
+      setSigningIn(false);
+    }
+
     if (!canStart) {
       setError("Complete all required preferences before starting.");
       return;
@@ -816,9 +838,13 @@ export function InterviewSetup({ retryParams = null }: InterviewSetupProps) {
                       onClick={() => {
                         void startInterview();
                       }}
-                      disabled={submitting}
+                      disabled={submitting || loading || signingIn}
                     >
-                      {submitting ? (
+                      {signingIn ? (
+                        "Signing in..."
+                      ) : loading ? (
+                        "Loading..."
+                      ) : submitting ? (
                         <>
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
                           Preparing interview...

@@ -12,9 +12,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildBackendUrl } from "@/lib/backend";
 import { Logo } from "@/components/Logo";
+import { useAuth } from "@/lib/auth-context";
+import { authHeaders } from "@/lib/api-client";
 import { saveSessionScore } from "@/lib/local-history";
 import { LoadingScreen } from "./LoadingScreen";
 import type { InterviewFinalReport, InterviewSessionAnswer } from "@/lib/types";
@@ -36,6 +38,8 @@ const FINISH_LOADING_MESSAGES = [
   "Analyzing full conversation...",
   "Preparing final report...",
 ];
+
+const SESSION_EXPIRED_MESSAGE = "Your session expired. Please sign in again.";
 
 const EXPERIENCE_VALUE_MAP: Record<string, string> = {
   Junior: "Junior",
@@ -139,6 +143,7 @@ type FinishResponse = {
 export function InterviewBox() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading, getIdToken } = useAuth();
   const topic = searchParams.get("topic") ?? "";
   const experience = searchParams.get("experience") ?? "";
   const difficulty = searchParams.get("difficulty") ?? "";
@@ -162,6 +167,7 @@ export function InterviewBox() {
   const [loadingNext, setLoadingNext] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState("");
+  const sessionStarted = useRef(false);
 
   const answerWordCount = useMemo(() => {
     const trimmed = answer.trim();
@@ -182,6 +188,10 @@ export function InterviewBox() {
   const isFinalQuestion = currentQuestionNumber >= totalQuestions;
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+
     if (missingSetup) {
       setLoadingStart(false);
       return;
@@ -190,6 +200,9 @@ export function InterviewBox() {
     let active = true;
 
     const initializeSession = async () => {
+      if (sessionStarted.current) return;
+      sessionStarted.current = true;
+
       setLoadingStart(true);
       setError("");
 
@@ -198,21 +211,23 @@ export function InterviewBox() {
 
         const startPromise = fetch(buildBackendUrl("/session/start"), {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: await authHeaders(getIdToken),
           body: JSON.stringify({
             topic,
             experience: normalizedExperience,
             difficulty: normalizedDifficulty,
             totalQuestions,
             recentQuestionIds,
+            userId: user?.uid ?? null,
           }),
         });
 
         const [startResponse] = await Promise.all([startPromise, wait(1500)]);
 
         if (!startResponse.ok) {
+          if (startResponse.status === 401 || startResponse.status === 403) {
+            throw new Error(SESSION_EXPIRED_MESSAGE);
+          }
           throw new Error(await readApiError(startResponse, "Unable to start interview session."));
         }
 
@@ -255,16 +270,8 @@ export function InterviewBox() {
     return () => {
       active = false;
     };
-  }, [
-    difficulty,
-    experience,
-    followUpQuestion,
-    missingSetup,
-    normalizedDifficulty,
-    normalizedExperience,
-    topic,
-    totalQuestions,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic, experience, difficulty, totalQuestions, loading]);
 
   const moveToNextQuestion = async () => {
     if (!answer.trim() || !question || !questionId || !sessionId || isFinalQuestion) {
@@ -280,9 +287,7 @@ export function InterviewBox() {
       const [progressResponse] = await Promise.all([
         fetch(buildBackendUrl("/session/progress"), {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: await authHeaders(getIdToken),
           body: JSON.stringify({
             sessionId,
             topic,
@@ -296,6 +301,9 @@ export function InterviewBox() {
       ]);
 
       if (!progressResponse.ok) {
+        if (progressResponse.status === 401 || progressResponse.status === 403) {
+          throw new Error(SESSION_EXPIRED_MESSAGE);
+        }
         throw new Error(await readApiError(progressResponse, "Unable to save current interview progress."));
       }
 
@@ -336,9 +344,7 @@ export function InterviewBox() {
       const [finishResponse] = await Promise.all([
         fetch(buildBackendUrl("/session/finish"), {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: await authHeaders(getIdToken),
           body: JSON.stringify({
             sessionId,
             answers: finalAnswers,
@@ -348,6 +354,9 @@ export function InterviewBox() {
       ]);
 
       if (!finishResponse.ok) {
+        if (finishResponse.status === 401 || finishResponse.status === 403) {
+          throw new Error(SESSION_EXPIRED_MESSAGE);
+        }
         throw new Error(await readApiError(finishResponse, "Unable to finish interview right now."));
       }
 
